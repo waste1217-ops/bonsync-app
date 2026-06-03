@@ -21,21 +21,29 @@ export async function processMessage({
   const supabase = createAdminClient()
 
   // ── 1. Busca o agente pela instância WhatsApp ──────────────────────────
-  const { data: agent } = await supabase
+  // .filter() é necessário para queries JSONB no Supabase JS v2
+  console.log(`[agent] Buscando agente para instância: "${instance}"`)
+
+  const { data: agentes, error: agentError } = await supabase
     .from('agents')
     .select('*')
-    .eq('config->>whatsapp_instance', instance)
-    .single()
+    .filter('config->>whatsapp_instance', 'eq', instance)
+    .eq('status', 'active')
+    .limit(1)
+
+  if (agentError) {
+    console.error('[agent] Erro ao buscar agente:', agentError.message)
+    return
+  }
+
+  const agent = agentes?.[0] ?? null
 
   if (!agent) {
-    console.warn(`[agent] Nenhum agente para instância "${instance}"`)
+    console.warn(`[agent] Nenhum agente ativo para instância "${instance}"`)
     return
   }
 
-  if (agent.status !== 'active') {
-    console.log(`[agent] Agente "${agent.name}" pausado — ignorando mensagem`)
-    return
-  }
+  console.log(`[agent] Agente encontrado: "${agent.name}" (${agent.id})`)
 
   const cfg = agent.config as Record<string, any>
 
