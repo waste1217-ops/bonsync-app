@@ -20,15 +20,25 @@ export function DeleteButton({ label = 'Excluir', confirmText, apiRoute, body, r
 
   async function handleDelete() {
     setLoading(true); setError('')
-    const res = await fetch(apiRoute, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error ?? 'Erro ao excluir.'); setLoading(false); return }
-    router.push(redirectTo)
-    router.refresh()
+    try {
+      const res = await fetch(apiRoute, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'Erro ao excluir.')
+        setLoading(false)
+        return
+      }
+      // Sucesso — redireciona
+      router.push(redirectTo)
+      router.refresh()
+    } catch (err: any) {
+      setError('Erro de conexão. Tente novamente.')
+      setLoading(false)
+    }
   }
 
   return (
