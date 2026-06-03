@@ -3,33 +3,27 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { C, T, L, CARD, FONT } from '@/lib/styles'
 
 export default function NovoClientePage() {
-  const [form, setForm] = useState({ company_name: '', email: '', password: '' })
+  const [form, setForm]     = useState({ company_name: '', email: '', password: '' })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]   = useState('')
   const [success, setSuccess] = useState(false)
-  const router = useRouter()
+  const router   = useRouter()
   const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
 
-    // Cria usuário via Supabase Auth Admin (precisa da service role key em produção)
-    // Por ora usamos signUp e inserimos o profile manualmente
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      options: { data: { company_name: form.company_name } }
+      options: { data: { company_name: form.company_name } },
     })
 
-    if (signUpError) {
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
+    if (signUpError) { setError(signUpError.message); setLoading(false); return }
 
     if (data.user) {
       await supabase.from('profiles').upsert({
@@ -41,75 +35,56 @@ export default function NovoClientePage() {
       setSuccess(true)
       setTimeout(() => router.push('/admin/clientes'), 1500)
     }
-
     setLoading(false)
   }
 
   return (
-    <div className="animate-slide-up max-w-lg">
-      <div className="mb-8">
-        <a href="/admin/clientes" className="font-mono text-[10px] text-muted tracking-wider hover:text-white transition-colors no-underline">
+    <div className="animate-slide-up" style={{ maxWidth: 520 }}>
+
+      {/* Back + Header */}
+      <div style={{ marginBottom: 28 }}>
+        <a href="/admin/clientes" style={{ ...T.mono, color: C.muted, fontSize: 10, display: 'inline-block', marginBottom: 16 }}>
           ← Voltar
         </a>
-        <h1 className="font-heading font-bold text-2xl text-white tracking-tight mt-4">Novo cliente</h1>
-        <p className="text-muted text-sm font-light mt-1">Crie o acesso de um novo cliente à plataforma.</p>
+        <h1 style={T.h1}>Novo cliente</h1>
+        <p style={{ ...T.sub, marginTop: 4 }}>Crie o acesso de um novo cliente à plataforma.</p>
       </div>
 
+      {/* Sucesso */}
       {success && (
-        <div className="bg-green/8 border border-green/30 rounded-xl px-5 py-4 text-green text-sm mb-6">
+        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 10, padding: '14px 20px', marginBottom: 20, color: C.green, fontFamily: FONT.dm, fontSize: 14 }}>
           Cliente criado com sucesso! Redirecionando…
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-deep border border-border rounded-xl p-6 flex flex-col gap-5">
+      {/* Form */}
+      <form onSubmit={handleSubmit} style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
-          <label className="block font-mono text-[10px] text-blue-bright tracking-[0.14em] uppercase mb-2">
-            Nome da empresa
-          </label>
-          <input
-            type="text"
-            value={form.company_name}
-            onChange={e => setForm({ ...form, company_name: e.target.value })}
-            placeholder="Acme Ltda."
-            required
-            className="w-full bg-surface/50 border border-border rounded-lg px-4 py-3 text-sm text-white placeholder-muted outline-none focus:border-blue-bright focus:ring-2 focus:ring-blue/20 transition"
-          />
+          <label style={T.label}>Nome da empresa</label>
+          <input className="field" type="text" required placeholder="Acme Ltda."
+            value={form.company_name} onChange={e => setForm({ ...form, company_name: e.target.value })} />
         </div>
         <div>
-          <label className="block font-mono text-[10px] text-blue-bright tracking-[0.14em] uppercase mb-2">
-            E-mail de acesso
-          </label>
-          <input
-            type="email"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-            placeholder="contato@acme.com.br"
-            required
-            className="w-full bg-surface/50 border border-border rounded-lg px-4 py-3 text-sm text-white placeholder-muted outline-none focus:border-blue-bright focus:ring-2 focus:ring-blue/20 transition"
-          />
+          <label style={T.label}>E-mail de acesso</label>
+          <input className="field" type="email" required placeholder="contato@acme.com.br"
+            value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
         </div>
         <div>
-          <label className="block font-mono text-[10px] text-blue-bright tracking-[0.14em] uppercase mb-2">
-            Senha inicial
-          </label>
-          <input
-            type="password"
-            value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })}
-            placeholder="Mínimo 8 caracteres"
-            minLength={8}
-            required
-            className="w-full bg-surface/50 border border-border rounded-lg px-4 py-3 text-sm text-white placeholder-muted outline-none focus:border-blue-bright focus:ring-2 focus:ring-blue/20 transition"
-          />
-          <p className="font-mono text-[10px] text-faint mt-2">O cliente poderá alterar a senha após o primeiro acesso.</p>
+          <label style={T.label}>Senha inicial</label>
+          <input className="field" type="password" required minLength={8} placeholder="Mínimo 8 caracteres"
+            value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+          <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+            O cliente poderá alterar a senha após o primeiro acesso.
+          </p>
         </div>
 
         {error && (
-          <div className="bg-red/8 border border-red/30 rounded-lg px-4 py-3 text-red text-sm">{error}</div>
+          <div style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.25)', borderRadius: 8, padding: '12px 16px', color: C.red, fontFamily: FONT.dm, fontSize: 13 }}>
+            {error}
+          </div>
         )}
 
-        <button type="submit" disabled={loading}
-          className="w-full py-3 rounded-full bg-white text-void text-sm font-medium transition hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed">
+        <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: 4 }}>
           {loading ? 'Criando…' : 'Criar cliente'}
         </button>
       </form>
