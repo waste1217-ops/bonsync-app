@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, agentStatusLabel, convStatusVariant, convStatusLabel } from '@/lib/styles'
 import { AgentToggle } from './AgentToggle'
+import { DeleteButton } from '@/components/DeleteButton'
 
 export default async function AgenteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -112,10 +113,17 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
         )}
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <a href={`/admin/agentes/${id}/editar`} className="btn-ghost" style={{ fontSize: 12, padding: '9px 18px' }}>
             Editar configuração
           </a>
+          <DeleteButton
+            label="Excluir agente"
+            confirmText={`Tem certeza que deseja excluir o agente "${agent.name}"? Todas as conversas e métricas serão perdidas.`}
+            apiRoute="/api/admin/delete-agent"
+            body={{ agent_id: id }}
+            redirectTo="/admin/agentes"
+          />
         </div>
       </div>
 

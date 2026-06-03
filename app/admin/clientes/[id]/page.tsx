@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, agentStatusLabel, convStatusVariant, convStatusLabel } from '@/lib/styles'
+import { DeleteButton } from '@/components/DeleteButton'
 
 export default async function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,9 +40,18 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <h1 style={T.h1}>{cliente.company_name || cliente.email}</h1>
             <p style={{ ...T.sub, marginTop: 4 }}>{cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR')}</p>
           </div>
-          <a href={`/admin/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize: 13, padding: '10px 20px' }}>
-            Editar
-          </a>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <a href={`/admin/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize: 13, padding: '10px 20px' }}>
+              Editar
+            </a>
+            <DeleteButton
+              label="Excluir cliente"
+              confirmText={`Tem certeza que deseja excluir o cliente "${cliente.company_name || cliente.email}"? Todos os agentes, conversas e dados serão removidos permanentemente.`}
+              apiRoute="/api/admin/delete-client"
+              body={{ client_id: id }}
+              redirectTo="/admin/clientes"
+            />
+          </div>
         </div>
       </div>
 
