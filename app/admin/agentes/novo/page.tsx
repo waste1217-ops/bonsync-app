@@ -19,6 +19,7 @@ export default function NovoAgentePage() {
     prompt: '', tom: 'profissional',
     saudacao: 'Olá! Como posso te ajudar hoje?',
     escalarApos: 15,
+    whatsapp_instance: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
@@ -49,7 +50,8 @@ export default function NovoAgentePage() {
         tom:           form.tom,
         saudacao:      form.saudacao,
         escalarApos:   form.escalarApos,
-        channels:      ['WhatsApp'],
+        whatsapp_instance:  form.whatsapp_instance,
+        channels:           ['WhatsApp'],
       },
     })
 
@@ -160,6 +162,15 @@ export default function NovoAgentePage() {
               <input className="field" type="number" min={3} max={100} value={form.escalarApos}
                 onChange={e => setForm({ ...form, escalarApos: Number(e.target.value) })}
                 style={{ width: 120 }} />
+            </div>
+            <div>
+              <label style={T.label}>Instância WhatsApp (Evolution API)</label>
+              <input className="field" type="text" placeholder="ex: javai"
+                value={form.whatsapp_instance}
+                onChange={e => setForm({ ...form, whatsapp_instance: e.target.value })} />
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Nome exato da instância no Evolution Manager. Liga este agente ao número escaneado.
+              </p>
             </div>
           </div>
         </div>
