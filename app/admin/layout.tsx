@@ -13,9 +13,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!profile || profile.role !== 'admin') redirect('/painel')
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--c-void)' }}>
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      width: '100%',
+      overflow: 'hidden',
+      background: '#060a10',
+      position: 'relative',
+    }}>
       <Sidebar profile={profile} />
-      <main style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
+      <main style={{
+        flex: 1,
+        minWidth: 0,          /* evita overflow do flex */
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        padding: '32px',
+        position: 'relative',
+        zIndex: 1,
+      }}>
         {children}
       </main>
     </div>

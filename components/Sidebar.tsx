@@ -56,10 +56,16 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
   return (
     <aside style={{
-      width: 240, flexShrink: 0, height: '100%',
-      background: 'var(--c-deep)',
-      borderRight: '1px solid var(--c-border)',
-      display: 'flex', flexDirection: 'column',
+      width: 240,
+      flexShrink: 0,
+      height: '100%',
+      background: '#08101f',
+      borderRight: '1px solid rgba(80,130,210,0.16)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      position: 'relative',
+      zIndex: 20,
     }}>
       {/* Logo */}
       <div style={{ padding: '20px 16px', borderBottom: '1px solid var(--c-border)' }}>

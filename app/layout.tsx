@@ -14,9 +14,10 @@ const dmSans = DM_Sans({
   display: 'swap',
 })
 
+// IMPORTANTE: usar --font-jb, não --font-mono (conflita com Tailwind v4 internamente)
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-jb',
   display: 'swap',
 })
 
@@ -27,8 +28,24 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${spaceGrotesk.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full`}>
-      <body className="h-full bg-void text-white antialiased">{children}</body>
+    <html
+      lang="pt-BR"
+      className={`${spaceGrotesk.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
+      style={{ height: '100%' }}
+    >
+      <body style={{
+        height: '100%',
+        margin: 0,
+        padding: 0,
+        background: '#060a10',
+        color: '#eef2ff',
+        fontFamily: 'var(--font-dm), DM Sans, sans-serif',
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
+        overflowX: 'hidden',
+      }}>
+        {children}
+      </body>
     </html>
   )
 }
