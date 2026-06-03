@@ -1,127 +1,145 @@
 import { createClient } from '@/lib/supabase/server'
 
+const S = {
+  h1:   { fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 24, color: 'var(--c-white)', letterSpacing: '-0.025em', marginBottom: 4 } as React.CSSProperties,
+  sub:  { fontFamily: 'var(--font-dm)', fontWeight: 300, fontSize: 14, color: 'var(--c-muted)' } as React.CSSProperties,
+  mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
+}
+
 export default async function PainelPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: agent } = await supabase
-    .from('agents')
-    .select('*')
-    .eq('client_id', user!.id)
-    .single()
+    .from('agents').select('*').eq('client_id', user!.id).single()
 
-  const { count: totalConversas } = await supabase
-    .from('conversations')
-    .select('*', { count: 'exact', head: true })
+  const { count: total } = await supabase
+    .from('conversations').select('*', { count: 'exact', head: true }).eq('agent_id', agent?.id ?? '')
+
+  const { count: resolved } = await supabase
+    .from('conversations').select('*', { count: 'exact', head: true })
+    .eq('agent_id', agent?.id ?? '').eq('status', 'resolved')
+
+  const { count: escalated } = await supabase
+    .from('conversations').select('*', { count: 'exact', head: true })
+    .eq('agent_id', agent?.id ?? '').eq('status', 'escalated')
+
+  const { data: recentes } = await supabase
+    .from('conversations').select('*')
     .eq('agent_id', agent?.id ?? '')
+    .order('started_at', { ascending: false }).limit(6)
 
-  const { count: resolvedConversas } = await supabase
-    .from('conversations')
-    .select('*', { count: 'exact', head: true })
-    .eq('agent_id', agent?.id ?? '')
-    .eq('status', 'resolved')
+  const statusStyle: Record<string, React.CSSProperties> = {
+    active:  { color: 'var(--c-green)',  background: 'rgba(34,197,94,0.1)',  border: '1px solid rgba(34,197,94,0.2)' },
+    paused:  { color: 'var(--c-yellow)', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' },
+    error:   { color: 'var(--c-red)',    background: 'rgba(232,64,64,0.1)',   border: '1px solid rgba(232,64,64,0.2)' },
+  }
+  const convStyle: Record<string, React.CSSProperties> = {
+    open:     { color: 'var(--c-yellow)' },
+    resolved: { color: 'var(--c-green)' },
+    escalated:{ color: 'var(--c-red)' },
+  }
+  const convLabel: Record<string, string> = { open: 'Em aberto', resolved: 'Resolvido', escalated: 'Escalado' }
+  const agentLabel: Record<string, string> = { active: 'Ativo', paused: 'Pausado', error: 'Erro' }
 
-  const { data: recentConversas } = await supabase
-    .from('conversations')
-    .select('*')
-    .eq('agent_id', agent?.id ?? '')
-    .order('started_at', { ascending: false })
-    .limit(5)
-
-  const statusColor: Record<string, string> = {
-    active: 'text-green', paused: 'text-yellow', error: 'text-red',
-  }
-  const statusLabel: Record<string, string> = {
-    active: 'Ativo', paused: 'Pausado', error: 'Erro',
-  }
-  const convStatusColor: Record<string, string> = {
-    open: 'text-yellow', resolved: 'text-green', escalated: 'text-red',
-  }
-  const convStatusLabel: Record<string, string> = {
-    open: 'Em aberto', resolved: 'Resolvido', escalated: 'Escalado',
-  }
-
-  if (!agent) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="font-heading font-bold text-xl text-white mb-2">Nenhum agente configurado</div>
-          <p className="text-muted text-sm font-light">Entre em contato com a Bonsync para configurar seu agente.</p>
-        </div>
+  if (!agent) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ ...S.h1, fontSize: 20 }}>Nenhum agente configurado</p>
+        <p style={S.sub}>Entre em contato com a Bonsync para configurar seu agente.</p>
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
-    <div className="animate-slide-up max-w-5xl">
-      <div className="mb-8">
-        <h1 className="font-heading font-bold text-2xl text-white tracking-tight">Visão geral</h1>
-        <p className="text-muted text-sm font-light mt-1">Painel do seu agente Bonsync.</p>
+    <div className="animate-slide-up" style={{ maxWidth: 960 }}>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={S.h1}>Visão geral</h1>
+        <p style={S.sub}>Painel do seu agente Bonsync.</p>
       </div>
 
       {/* Agent status card */}
-      <div className="bg-deep border border-border-hi rounded-xl p-6 mb-6 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-48 h-48 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle at top right, oklch(55% 0.24 225/0.1) 0%, transparent 65%)' }} />
-        <div className="relative z-10 flex items-start justify-between">
+      <div className="card-hi" style={{ marginBottom: 20, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', right: 0, top: 0, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle at top right, oklch(55% 0.24 225/0.1) 0%, transparent 65%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
           <div>
-            <div className="font-mono text-[10px] text-muted tracking-widest uppercase mb-2">Seu agente</div>
-            <h2 className="font-heading font-bold text-xl text-white mb-3">{agent.name}</h2>
+            <p style={{ ...S.mono, color: 'var(--c-muted)', marginBottom: 8 }}>Seu agente</p>
+            <h2 style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 22, color: 'var(--c-white)', letterSpacing: '-0.02em', marginBottom: 10 }}>
+              {agent.name}
+            </h2>
             {agent.description && (
-              <p className="text-muted text-sm font-light max-w-md">{agent.description}</p>
+              <p style={{ fontFamily: 'var(--font-dm)', fontWeight: 300, fontSize: 14, color: 'var(--c-muted)', maxWidth: 480, lineHeight: 1.6 }}>
+                {agent.description}
+              </p>
             )}
           </div>
-          <div className={`flex items-center gap-2 font-mono text-xs tracking-wider px-3 py-1.5 rounded-full border
-            ${agent.status === 'active' ? 'text-green bg-green/10 border-green/20'
-              : agent.status === 'paused' ? 'text-yellow bg-yellow/10 border-yellow/20'
-              : 'text-red bg-red/10 border-red/20'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${agent.status === 'active' ? 'bg-green animate-pulse-dot' : agent.status === 'paused' ? 'bg-yellow' : 'bg-red'}`} />
-            {statusLabel[agent.status]}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
+            fontFamily: 'var(--font-jb)', fontSize: 11, letterSpacing: '0.08em',
+            padding: '7px 14px', borderRadius: 100,
+            ...statusStyle[agent.status]
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: agent.status === 'active' ? 'var(--c-green)' : agent.status === 'paused' ? 'var(--c-yellow)' : 'var(--c-red)' }}
+              className={agent.status === 'active' ? 'animate-pulse-dot' : ''} />
+            {agentLabel[agent.status]}
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
-          { label: 'Total de conversas', value: totalConversas ?? 0 },
-          { label: 'Resolvidas', value: resolvedConversas ?? 0 },
-          { label: 'Taxa de resolução', value: totalConversas ? `${Math.round(((resolvedConversas ?? 0) / totalConversas) * 100)}%` : '—' },
+          { label: 'Total de conversas', value: total ?? 0 },
+          { label: 'Resolvidas', value: resolved ?? 0 },
+          { label: 'Taxa de resolução', value: total ? `${Math.round(((resolved ?? 0) / total) * 100)}%` : '—' },
+          { label: 'Escaladas', value: escalated ?? 0 },
+          { label: 'Em aberto', value: (total ?? 0) - (resolved ?? 0) - (escalated ?? 0) },
+          { label: 'Canal principal', value: 'WhatsApp' },
         ].map(s => (
-          <div key={s.label} className="bg-deep border border-border rounded-xl p-5">
-            <p className="font-mono text-[10px] text-muted tracking-widest uppercase mb-3">{s.label}</p>
-            <p className="font-heading font-bold text-3xl text-blue-bright tracking-tight">{s.value}</p>
+          <div key={s.label} className="card">
+            <p style={{ ...S.mono, color: 'var(--c-muted)', marginBottom: 12 }}>{s.label}</p>
+            <p style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 36, color: 'var(--c-blue-b)', letterSpacing: '-0.03em', lineHeight: 1 }}>
+              {s.value}
+            </p>
           </div>
         ))}
       </div>
 
       {/* Recent conversations */}
-      <div className="bg-deep border border-border rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-heading font-semibold text-base text-white">Conversas recentes</h2>
-          <a href="/painel/conversas" className="font-mono text-[10px] text-blue-bright tracking-wider hover:underline no-underline">
+      <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 10, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ fontFamily: 'var(--font-space)', fontWeight: 600, fontSize: 16, color: 'var(--c-white)' }}>
+            Conversas recentes
+          </h2>
+          <a href="/painel/conversas" style={{ ...S.mono, color: 'var(--c-blue-b)', fontSize: 10 }}>
             Ver todas →
           </a>
         </div>
-
-        <div className="grid grid-cols-4 gap-4 px-6 py-3 border-b border-border/50">
+        {/* Col headers */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16, padding: '10px 24px', borderBottom: '1px solid rgba(80,130,210,0.08)' }}>
           {['Contato', 'Canal', 'Status', 'Data'].map(h => (
-            <span key={h} className="font-mono text-[9px] text-faint tracking-widest uppercase">{h}</span>
+            <span key={h} style={{ ...S.mono, color: 'var(--c-faint)', fontSize: 9 }}>{h}</span>
           ))}
         </div>
-
-        {!recentConversas?.length && (
-          <div className="px-6 py-12 text-center text-muted text-sm font-light">
+        {!recentes?.length && (
+          <div style={{ padding: '48px 24px', textAlign: 'center', fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-muted)', fontWeight: 300 }}>
             Nenhuma conversa registrada ainda.
           </div>
         )}
-
-        {recentConversas?.map(c => (
-          <div key={c.id} className="grid grid-cols-4 gap-4 px-6 py-4 border-b border-border/40 hover:bg-surface/30 transition-colors">
-            <span className="text-white text-sm font-medium truncate">{c.contact_identifier || 'Anônimo'}</span>
-            <span className="text-muted text-sm font-mono text-xs">{c.channel}</span>
-            <span className={`font-mono text-[10px] ${convStatusColor[c.status]}`}>{convStatusLabel[c.status]}</span>
-            <span className="text-faint font-mono text-xs">{new Date(c.started_at).toLocaleDateString('pt-BR')}</span>
+        {recentes?.map(c => (
+          <div key={c.id} className="trow" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr' }}>
+            <span style={{ fontFamily: 'var(--font-dm)', fontWeight: 500, fontSize: 14, color: 'var(--c-white)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.contact_identifier || 'Anônimo'}
+            </span>
+            <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-muted)' }}>{c.channel}</span>
+            <span style={{ fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.05em', ...convStyle[c.status] }}>
+              {convLabel[c.status]}
+            </span>
+            <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-faint)' }}>
+              {new Date(c.started_at).toLocaleDateString('pt-BR')}
+            </span>
           </div>
         ))}
       </div>
