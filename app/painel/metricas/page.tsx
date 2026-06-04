@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { C, T, L, CARD, FONT } from '@/lib/styles'
+import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
 function BarChart({ data, height = 80 }: { data: number[]; height?: number }) {
   const max = Math.max(...data, 1)
@@ -23,7 +24,7 @@ export default async function PainelMetricasPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: agent } = await supabase
-    .from('agents').select('id, name, status').eq('client_id', user!.id).single()
+    .from('agents').select('id, name, status, config').eq('client_id', user!.id).single()
 
   // Busca conversas dos últimos 7 dias
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -63,6 +64,18 @@ export default async function PainelMetricasPage() {
     pct: c30.length ? Math.round((c30.filter(c => c.channel === ch).length / c30.length) * 100) : 0,
   }))
 
+  // Consumo de tokens (todas as conversas do agente)
+  const { data: convIdsData } = await supabase
+    .from('conversations').select('id').eq('agent_id', agent?.id ?? '')
+  const convIds = (convIdsData ?? []).map(c => c.id)
+  let tokens = { inputTokens: 0, outputTokens: 0 }
+  if (convIds.length > 0) {
+    const { data: msgs } = await supabase
+      .from('messages').select('input_tokens, output_tokens').in('conversation_id', convIds)
+    tokens = sumTokens(msgs ?? [])
+  }
+  const custo = estimateCostBRL(tokens, agent?.config?.model)
+
   if (!agent) return (
     <div style={{ textAlign: 'center', padding: '80px 0', ...T.sub }}>
       Nenhum agente configurado. Entre em contato com a Bonsync.
@@ -92,6 +105,28 @@ export default async function PainelMetricasPage() {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Consumo de IA */}
+      <div style={{ ...CARD, marginBottom: 24 }}>
+        <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
+          Consumo de IA
+        </h2>
+        <p style={{ ...T.sub, fontSize: 12, marginBottom: 20 }}>Tokens processados pelo seu agente (total).</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+          {[
+            { label: 'Tokens entrada', value: fmtTokens(tokens.inputTokens),  color: C.blueB },
+            { label: 'Tokens saída',   value: fmtTokens(tokens.outputTokens), color: C.blueB },
+            { label: 'Custo estimado', value: fmtBRL(custo),                  color: C.green },
+          ].map(k => (
+            <div key={k.label} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '16px 18px' }}>
+              <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 8 }}>{k.label}</p>
+              <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 24, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {k.value}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Gráfico de volume diário */}

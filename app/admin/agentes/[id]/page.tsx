@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, agentStatusLabel, convStatusVariant, convStatusLabel } from '@/lib/styles'
 import { AgentToggle } from './AgentToggle'
 import { DeleteButton } from '@/components/DeleteButton'
+import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
 export default async function AgenteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -26,6 +27,18 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
 
   const total    = conversas?.length ?? 0
   const resolved = conversas?.filter(c => c.status === 'resolved').length ?? 0
+
+  // Consumo de tokens: busca todas as mensagens das conversas deste agente
+  const { data: convIdsData } = await supabase
+    .from('conversations').select('id').eq('agent_id', id)
+  const convIds = (convIdsData ?? []).map(c => c.id)
+  let tokens = { inputTokens: 0, outputTokens: 0 }
+  if (convIds.length > 0) {
+    const { data: msgs } = await supabase
+      .from('messages').select('input_tokens, output_tokens').in('conversation_id', convIds)
+    tokens = sumTokens(msgs ?? [])
+  }
+  const custo = estimateCostBRL(tokens, agent.config?.model)
 
   const cliente = agent.profiles as any
 
@@ -83,6 +96,31 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Consumo de tokens */}
+      <div style={{ ...CARD, marginBottom: 20 }}>
+        <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
+          Consumo de IA
+        </h2>
+        <p style={{ ...T.sub, fontSize: 12, marginBottom: 20 }}>Tokens processados e custo estimado deste agente.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {[
+            { label: 'Tokens entrada', value: fmtTokens(tokens.inputTokens),  color: C.blueB },
+            { label: 'Tokens saída',   value: fmtTokens(tokens.outputTokens), color: C.blueB },
+            { label: 'Custo estimado', value: fmtBRL(custo),                  color: C.green },
+          ].map(k => (
+            <div key={k.label} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '16px 18px' }}>
+              <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 8 }}>{k.label}</p>
+              <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 24, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {k.value}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontFamily: FONT.jb, fontSize: 9, color: C.faint, marginTop: 12 }}>
+          * Custo estimado com base no modelo {agent.config?.model ?? 'padrão'}. Valores aproximados.
+        </p>
       </div>
 
       {/* Config atual */}
