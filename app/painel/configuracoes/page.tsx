@@ -120,15 +120,17 @@ export default function PainelConfigPage() {
                   : 'O agente passa para um humano quando julgar necessário (negociação, reclamação grave, etc.).'}
               </p>
             </div>
-            <div>
-              <label style={T.label}>Escalar automaticamente após (nº de mensagens)</label>
-              <input className="field" type="number" min={0} max={100} value={cfg.escalate_after_messages}
-                onChange={e => setCfg({ ...cfg, escalate_after_messages: Number(e.target.value) })}
-                style={{ width: 120 }} />
-              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
-                Limite de segurança. Use <b style={{ color: C.muted }}>0</b> para desligar. Se a conversa passar desse número de mensagens, escala mesmo no modo sob demanda.
-              </p>
-            </div>
+            {cfg.escalation_mode === 'auto' && (
+              <div>
+                <label style={T.label}>Escalar automaticamente após (nº de mensagens)</label>
+                <input className="field" type="number" min={0} max={100} value={cfg.escalate_after_messages}
+                  onChange={e => setCfg({ ...cfg, escalate_after_messages: Number(e.target.value) })}
+                  style={{ width: 120 }} />
+                <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                  Limite de segurança. Use <b style={{ color: C.muted }}>0</b> para desligar. Se a conversa passar desse número de mensagens, o agente escala automaticamente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
