@@ -4,6 +4,19 @@ const S = {
   mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
 }
 
+function formatContact(id: string | null): string {
+  if (!id) return 'Anônimo'
+  // Remove sufixos WhatsApp e formata número brasileiro
+  const num = id.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '')
+  // Se parece número brasileiro (55 + DDD + número)
+  if (/^55\d{10,11}$/.test(num)) {
+    return `+${num.slice(0,2)} (${num.slice(2,4)}) ${num.slice(4,9)}-${num.slice(9)}`
+  }
+  // @lid ou número não reconhecido — mostra só os últimos dígitos
+  if (id.includes('@lid')) return `WhatsApp ${num.slice(-6)}`
+  return num || 'Anônimo'
+}
+
 export default async function PainelConversasPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -71,7 +84,7 @@ export default async function PainelConversasPage() {
           <a key={c.id} href={`/painel/conversas/${c.id}`}
             className="trow" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 16, cursor: 'pointer' }}>
             <span style={{ fontFamily: 'var(--font-dm)', fontWeight: 500, fontSize: 14, color: 'var(--c-white)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {c.contact_identifier || 'Anônimo'}
+              {formatContact(c.contact_identifier)}
             </span>
             <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-muted)' }}>{c.channel}</span>
             <span style={{ ...S.mono, fontSize: 9, padding: '4px 10px', borderRadius: 100, width: 'fit-content', ...statusStyle[c.status] }}>
