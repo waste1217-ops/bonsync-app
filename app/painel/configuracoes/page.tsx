@@ -10,7 +10,8 @@ export default function PainelConfigPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [cfg, setCfg] = useState({
-    prompt: '', tom: 'profissional', saudacao: '', escalarApos: 15,
+    prompt: '', tom: 'profissional', saudacao: '',
+    escalation_mode: 'on_demand', escalate_after_messages: 0,
   })
   const supabase = createClient()
 
@@ -21,10 +22,11 @@ export default function PainelConfigPage() {
       if (data) {
         setAgent(data)
         setCfg({
-          prompt:      data.config?.prompt      ?? '',
-          tom:         data.config?.tom         ?? 'profissional',
-          saudacao:    data.config?.saudacao    ?? '',
-          escalarApos: data.config?.escalarApos ?? 15,
+          prompt:                  data.config?.prompt                  ?? '',
+          tom:                     data.config?.tom                     ?? 'profissional',
+          saudacao:                data.config?.saudacao                ?? '',
+          escalation_mode:         data.config?.escalation_mode         ?? 'on_demand',
+          escalate_after_messages: data.config?.escalate_after_messages ?? 0,
         })
       }
       setLoading(false)
@@ -101,14 +103,32 @@ export default function PainelConfigPage() {
             placeholder="Você é um assistente virtual da empresa. Seu objetivo é…" />
         </div>
 
-        {/* Limites */}
+        {/* Escalonamento */}
         <div style={sectionStyle}>
-          <h2 style={sectionTitle}>Limites</h2>
-          <div>
-            <label style={T.label}>Escalar para humano após (nº de mensagens)</label>
-            <input className="field" type="number" min={5} max={100} value={cfg.escalarApos}
-              onChange={e => setCfg({ ...cfg, escalarApos: Number(e.target.value) })}
-              style={{ width: 120 }} />
+          <h2 style={sectionTitle}>Atendimento humano</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={T.label}>Quando passar para um atendente humano?</label>
+              <select className="field" value={cfg.escalation_mode}
+                onChange={e => setCfg({ ...cfg, escalation_mode: e.target.value })}>
+                <option value="on_demand">Sob demanda — só quando o cliente pedir (recomendado)</option>
+                <option value="auto">Automático — o agente decide quando é necessário</option>
+              </select>
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                {cfg.escalation_mode === 'on_demand'
+                  ? 'O agente só chama um humano se a pessoa pedir explicitamente ("quero falar com um atendente").'
+                  : 'O agente passa para um humano quando julgar necessário (negociação, reclamação grave, etc.).'}
+              </p>
+            </div>
+            <div>
+              <label style={T.label}>Escalar automaticamente após (nº de mensagens)</label>
+              <input className="field" type="number" min={0} max={100} value={cfg.escalate_after_messages}
+                onChange={e => setCfg({ ...cfg, escalate_after_messages: Number(e.target.value) })}
+                style={{ width: 120 }} />
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Limite de segurança. Use <b style={{ color: C.muted }}>0</b> para desligar. Se a conversa passar desse número de mensagens, escala mesmo no modo sob demanda.
+              </p>
+            </div>
           </div>
         </div>
 
