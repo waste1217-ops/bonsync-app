@@ -25,6 +25,7 @@ function MeshMark({ size = 24, animate = false }: { size?: number; animate?: boo
 
 const adminNav = [
   { href: '/admin',           label: 'Visão geral',    icon: HomeIcon },
+  { href: '/admin/assistente',label: 'Copiloto',       icon: SparkIcon },
   { href: '/admin/clientes',  label: 'Clientes',       icon: UsersIcon },
   { href: '/admin/agentes',   label: 'Agentes',        icon: BoltIcon },
   { href: '/admin/conversas', label: 'Conversas',      icon: ChatIcon },

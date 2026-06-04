@@ -1,5 +1,5 @@
 import { Copiloto } from '@/components/Copiloto'
 
-export default function PainelAssistentePage() {
+export default function AdminAssistentePage() {
   return <Copiloto />
 }
