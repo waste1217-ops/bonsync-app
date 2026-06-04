@@ -141,12 +141,12 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
           <div style={{ padding: '40px 24px', textAlign: 'center', ...T.sub }}>Nenhuma conversa registrada.</div>
         )}
         {conversas?.map(c => (
-          <div key={c.id} className="trow" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16 }}>
+          <a key={c.id} href={`/admin/conversas/${c.id}`} className="trow" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16, cursor: 'pointer' }}>
             <span style={T.cell}>{c.contact_identifier || 'Anônimo'}</span>
             <span style={T.cellMono}>{c.channel}</span>
             <span style={badgeStyle(convStatusVariant(c.status))}>{convStatusLabel[c.status]}</span>
             <span style={T.cellMono}>{new Date(c.started_at).toLocaleDateString('pt-BR')}</span>
-          </div>
+          </a>
         ))}
       </div>
     </div>

@@ -4,6 +4,16 @@ const S = {
   mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
 }
 
+function formatContact(id: string | null): string {
+  if (!id) return 'Anônimo'
+  const num = id.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '')
+  if (/^55\d{10,11}$/.test(num)) {
+    return `+${num.slice(0,2)} (${num.slice(2,4)}) ${num.slice(4,9)}-${num.slice(9)}`
+  }
+  if (id.includes('@lid')) return `WhatsApp ${num.slice(-6)}`
+  return num || 'Anônimo'
+}
+
 export default async function AdminConversasPage() {
   const supabase = await createClient()
   const { data: conversas } = await supabase
@@ -62,9 +72,9 @@ export default async function AdminConversasPage() {
         )}
 
         {conversas?.map((c: any) => (
-          <div key={c.id} className="trow" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr 1fr 1fr', gap: 16 }}>
+          <a key={c.id} href={`/admin/conversas/${c.id}`} className="trow" style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr 1fr 1fr', gap: 16, cursor: 'pointer' }}>
             <span style={{ fontFamily: 'var(--font-dm)', fontWeight: 500, fontSize: 14, color: 'var(--c-white)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {c.contact_identifier || 'Anônimo'}
+              {formatContact(c.contact_identifier)}
             </span>
             <div>
               <p style={{ fontFamily: 'var(--font-dm)', fontSize: 13, color: 'var(--c-white)' }}>
@@ -81,7 +91,7 @@ export default async function AdminConversasPage() {
             <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-faint)' }}>
               {new Date(c.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </span>
-          </div>
+          </a>
         ))}
       </div>
     </div>
