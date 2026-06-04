@@ -34,9 +34,16 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError('E-mail ou senha incorretos.')
+      // Mostra o erro real para diagnóstico
+      console.error('[login] erro:', error)
+      setError(`Erro: ${error.message}`)
+      setLoading(false)
+      return
+    }
+    if (!data.session) {
+      setError('Login sem sessão — verifique configuração.')
       setLoading(false)
       return
     }
