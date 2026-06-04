@@ -1,7 +1,32 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { C, T, FONT } from '@/lib/styles'
+
+/* Renderiza Markdown da IA com estilos do tema escuro */
+const MD = {
+  p:  (p: any) => <p style={{ margin: '0 0 10px', lineHeight: 1.7 }} {...p} />,
+  h1: (p: any) => <h1 style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 19, color: C.white, margin: '16px 0 8px' }} {...p} />,
+  h2: (p: any) => <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 17, color: C.white, margin: '16px 0 8px' }} {...p} />,
+  h3: (p: any) => <h3 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 15, color: C.white, margin: '14px 0 6px' }} {...p} />,
+  strong: (p: any) => <strong style={{ color: C.white, fontWeight: 700 }} {...p} />,
+  em: (p: any) => <em style={{ fontStyle: 'italic' }} {...p} />,
+  ul: (p: any) => <ul style={{ margin: '0 0 10px', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }} {...p} />,
+  ol: (p: any) => <ol style={{ margin: '0 0 10px', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }} {...p} />,
+  li: (p: any) => <li style={{ lineHeight: 1.6 }} {...p} />,
+  a:  (p: any) => <a style={{ color: C.blueB, textDecoration: 'underline' }} target="_blank" rel="noreferrer" {...p} />,
+  code: (p: any) => p.inline
+    ? <code style={{ fontFamily: FONT.jb, fontSize: 12.5, background: 'rgba(80,130,210,0.12)', padding: '1px 6px', borderRadius: 4, color: C.blueB }} {...p} />
+    : <code style={{ fontFamily: FONT.jb, fontSize: 12.5 }} {...p} />,
+  pre: (p: any) => <pre style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, overflowX: 'auto', margin: '0 0 10px', fontSize: 12.5, lineHeight: 1.6 }} {...p} />,
+  blockquote: (p: any) => <blockquote style={{ borderLeft: `2px solid ${C.borderHi}`, paddingLeft: 14, margin: '0 0 10px', color: C.muted }} {...p} />,
+  table: (p: any) => <div style={{ overflowX: 'auto', margin: '0 0 10px' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }} {...p} /></div>,
+  th: (p: any) => <th style={{ border: `1px solid ${C.border}`, padding: '8px 10px', textAlign: 'left', color: C.white, fontFamily: FONT.jb, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', background: 'rgba(80,130,210,0.06)' }} {...p} />,
+  td: (p: any) => <td style={{ border: `1px solid ${C.border}`, padding: '8px 10px', color: C.muted }} {...p} />,
+  hr: () => <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '14px 0' }} />,
+}
 
 interface Attachment {
   kind: 'text' | 'pdf' | 'image'
@@ -138,7 +163,13 @@ export function Copiloto() {
                   <span style={{ fontFamily: FONT.jb, fontSize: 9, color: m.role === 'user' ? C.muted : C.blueB }}>{m.role === 'user' ? 'EU' : 'IA'}</span>
                 </div>
                 <div style={{ maxWidth: '78%', background: m.role === 'user' ? C.surface : C.deep, border: `1px solid ${m.role === 'user' ? C.border : C.borderHi}`, borderRadius: m.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px', padding: '12px 16px' }}>
-                  <p style={{ fontFamily: FONT.dm, fontSize: 14.5, color: C.white, lineHeight: 1.7, fontWeight: 300, whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                  {m.role === 'user' ? (
+                    <p style={{ fontFamily: FONT.dm, fontSize: 14.5, color: C.white, lineHeight: 1.7, fontWeight: 300, whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                  ) : (
+                    <div style={{ fontFamily: FONT.dm, fontSize: 14.5, color: C.white, fontWeight: 300 }}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{m.content}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
