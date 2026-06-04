@@ -200,7 +200,7 @@ export default function LoginPage() {
 
           <p style={{ textAlign: 'center', marginTop: 28, fontFamily: 'var(--font-dm), sans-serif', fontSize: 14, color: '#7286a0', fontWeight: 300 }}>
             Precisa de acesso?{' '}
-            <a href="https://bonsync.com/demo" style={{ color: 'oklch(72% 0.21 225)', fontWeight: 500 }}>
+            <a href="https://bonsync.com.br/demo.html" style={{ color: 'oklch(72% 0.21 225)', fontWeight: 500 }}>
               Fale com a Bonsync
             </a>
           </p>
