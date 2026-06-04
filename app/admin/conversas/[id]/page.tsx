@@ -52,7 +52,7 @@ export default async function AdminConversaDetailPage({ params }: { params: Prom
                 ['Agente', agent?.name ?? '—'],
                 ['Canal', conversa.channel],
                 ['Mensagens', String(messages?.length ?? 0)],
-                ['Início', new Date(conversa.started_at).toLocaleString('pt-BR')],
+                ['Início', new Date(conversa.started_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })],
               ].map(([k, v]) => (
                 <div key={k}>
                   <span style={{ ...T.mono, color: C.faint, fontSize: 9 }}>{k}</span>
@@ -104,7 +104,7 @@ export default async function AdminConversaDetailPage({ params }: { params: Prom
                     {msg.content}
                   </p>
                   <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint }}>
-                    {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>

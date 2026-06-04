@@ -51,7 +51,7 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {[
                 ['Canal', conversa.channel],
-                ['Início', new Date(conversa.started_at).toLocaleString('pt-BR')],
+                ['Início', new Date(conversa.started_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })],
                 ['Mensagens', String(messages?.length ?? 0)],
               ].map(([k, v]) => (
                 <div key={k}>
@@ -111,7 +111,7 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
                   {msg.content}
                 </p>
                 <span style={{ fontFamily: 'var(--font-jb)', fontSize: 10, color: 'var(--c-faint)' }}>
-                  {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             </div>

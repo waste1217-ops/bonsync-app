@@ -57,7 +57,7 @@ export default async function AdminClientesPage() {
                 : <span style={{ ...T.mono, color: C.faint }}>nenhum</span>
               }
             </div>
-            <span style={T.cellMono}>{new Date(c.created_at).toLocaleDateString('pt-BR')}</span>
+            <span style={T.cellMono}>{new Date(c.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
           </a>
         ))}
       </div>

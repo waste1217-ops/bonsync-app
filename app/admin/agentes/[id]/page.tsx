@@ -58,7 +58,7 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
                   </div>
                   <div>
                     <p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 4 }}>Criado em</p>
-                    <p style={{ fontFamily: FONT.jb, fontSize: 12, color: C.muted }}>{new Date(agent.created_at).toLocaleDateString('pt-BR')}</p>
+                    <p style={{ fontFamily: FONT.jb, fontSize: 12, color: C.muted }}>{new Date(agent.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
                   </div>
                 </div>
               </div>
@@ -145,7 +145,7 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
             <span style={T.cell}>{c.contact_identifier || 'Anônimo'}</span>
             <span style={T.cellMono}>{c.channel}</span>
             <span style={badgeStyle(convStatusVariant(c.status))}>{convStatusLabel[c.status]}</span>
-            <span style={T.cellMono}>{new Date(c.started_at).toLocaleDateString('pt-BR')}</span>
+            <span style={T.cellMono}>{new Date(c.started_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
           </a>
         ))}
       </div>

@@ -138,7 +138,7 @@ export default async function PainelPage() {
               {convLabel[c.status]}
             </span>
             <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-faint)' }}>
-              {new Date(c.started_at).toLocaleDateString('pt-BR')}
+              {new Date(c.started_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
             </span>
           </div>
         ))}

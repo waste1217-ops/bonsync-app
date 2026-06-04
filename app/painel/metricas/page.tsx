@@ -111,7 +111,7 @@ export default async function PainelMetricasPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
           {dias.map(d => (
             <span key={d} style={{ ...T.mono, color: C.faint, fontSize: 9 }}>
-              {new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}
+              {new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short' })}
             </span>
           ))}
         </div>

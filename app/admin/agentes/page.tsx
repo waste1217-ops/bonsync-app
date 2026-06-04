@@ -70,7 +70,7 @@ export default async function AdminAgentesPage() {
               {statusLabel[a.status]}
             </span>
             <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-faint)' }}>
-              {new Date(a.created_at).toLocaleDateString('pt-BR')}
+              {new Date(a.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
             </span>
           </a>
         ))}

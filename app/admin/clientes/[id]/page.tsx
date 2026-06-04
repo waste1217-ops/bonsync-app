@@ -38,7 +38,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
         <div style={L.pageHeader}>
           <div>
             <h1 style={T.h1}>{cliente.company_name || cliente.email}</h1>
-            <p style={{ ...T.sub, marginTop: 4 }}>{cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR')}</p>
+            <p style={{ ...T.sub, marginTop: 4 }}>{cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <a href={`/admin/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize: 13, padding: '10px 20px' }}>
@@ -128,7 +128,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <span style={T.cell}>{c.contact_identifier || 'Anônimo'}</span>
             <span style={T.cellMono}>{c.channel}</span>
             <span style={badgeStyle(convStatusVariant(c.status))}>{convStatusLabel[c.status]}</span>
-            <span style={T.cellMono}>{new Date(c.started_at).toLocaleDateString('pt-BR')}</span>
+            <span style={T.cellMono}>{new Date(c.started_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
           </div>
         ))}
       </div>
