@@ -10,22 +10,31 @@ interface Item {
   active: boolean
   created_at: string
 }
+interface Suggestion {
+  id: string
+  content: string
+  reason: string | null
+  created_at: string
+}
 
 export function KnowledgeManager({ agentId }: { agentId: string }) {
   const supabase = createClient()
-  const [items, setItems]     = useState<Item[]>([])
-  const [loading, setLoading] = useState(true)
-  const [novo, setNovo]       = useState('')
-  const [saving, setSaving]   = useState(false)
-  const [editId, setEditId]   = useState<string | null>(null)
+  const [items, setItems]       = useState<Item[]>([])
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [novo, setNovo]         = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [editId, setEditId]     = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [busy, setBusy]         = useState('')
 
   async function load() {
-    const { data } = await supabase
-      .from('knowledge_base').select('*')
-      .eq('agent_id', agentId)
-      .order('created_at', { ascending: false })
-    setItems(data ?? [])
+    const [{ data: kb }, { data: sug }] = await Promise.all([
+      supabase.from('knowledge_base').select('*').eq('agent_id', agentId).order('created_at', { ascending: false }),
+      supabase.from('knowledge_suggestions').select('*').eq('agent_id', agentId).eq('status', 'pending').order('created_at', { ascending: false }),
+    ])
+    setItems(kb ?? [])
+    setSuggestions(sug ?? [])
     setLoading(false)
   }
 
@@ -36,27 +45,32 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
     if (!content || saving) return
     setSaving(true)
     await supabase.from('knowledge_base').insert({ agent_id: agentId, content, active: true })
-    setNovo('')
-    setSaving(false)
-    load()
+    setNovo(''); setSaving(false); load()
   }
 
   async function toggle(item: Item) {
     await supabase.from('knowledge_base').update({ active: !item.active, updated_at: new Date().toISOString() }).eq('id', item.id)
     load()
   }
-
   async function remover(id: string) {
-    await supabase.from('knowledge_base').delete().eq('id', id)
-    load()
+    await supabase.from('knowledge_base').delete().eq('id', id); load()
+  }
+  async function salvarEdicao(id: string) {
+    const content = editText.trim(); if (!content) return
+    await supabase.from('knowledge_base').update({ content, updated_at: new Date().toISOString() }).eq('id', id)
+    setEditId(null); setEditText(''); load()
   }
 
-  async function salvarEdicao(id: string) {
-    const content = editText.trim()
-    if (!content) return
-    await supabase.from('knowledge_base').update({ content, updated_at: new Date().toISOString() }).eq('id', id)
-    setEditId(null); setEditText('')
-    load()
+  async function aprovar(s: Suggestion) {
+    setBusy(s.id)
+    await supabase.from('knowledge_base').insert({ agent_id: agentId, content: s.content, active: true })
+    await supabase.from('knowledge_suggestions').update({ status: 'approved' }).eq('id', s.id)
+    setBusy(''); load()
+  }
+  async function descartar(s: Suggestion) {
+    setBusy(s.id)
+    await supabase.from('knowledge_suggestions').update({ status: 'rejected' }).eq('id', s.id)
+    setBusy(''); load()
   }
 
   if (loading) return (
@@ -65,7 +79,46 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
 
   return (
     <div>
-      {/* Adicionar */}
+      {/* Sugestões do agente */}
+      {suggestions.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white }}>
+              Sugestões do agente
+            </h2>
+            <span style={{ ...T.mono, fontSize: 9, color: C.blueB, background: 'oklch(55% 0.24 225/0.12)', border: '1px solid oklch(55% 0.24 225/0.25)', padding: '3px 9px', borderRadius: 100 }}>
+              {suggestions.length} nova{suggestions.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <p style={{ ...T.sub, fontSize: 12, marginBottom: 14 }}>
+            O agente percebeu temas recorrentes nas conversas e sugere adicionar à base. Você decide.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {suggestions.map(s => (
+              <div key={s.id} style={{ background: C.deep, border: `1px solid ${C.borderHi}`, borderRadius: 10, padding: '16px 18px' }}>
+                <p style={{ fontFamily: FONT.dm, fontSize: 14.5, color: C.white, lineHeight: 1.6, fontWeight: 300, marginBottom: s.reason ? 8 : 14 }}>
+                  {s.content}
+                </p>
+                {s.reason && (
+                  <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
+                    💡 {s.reason}
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => aprovar(s)} disabled={!!busy} className="btn-primary" style={{ fontSize: 12, padding: '8px 16px' }}>
+                    {busy === s.id ? '…' : 'Aprovar'}
+                  </button>
+                  <button onClick={() => descartar(s)} disabled={!!busy} className="btn-ghost" style={{ fontSize: 12, padding: '8px 16px' }}>
+                    Descartar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Adicionar manual */}
       <div style={{ ...CARD, marginBottom: 20 }}>
         <label style={T.label}>Adicionar um conhecimento</label>
         <textarea
@@ -73,7 +126,6 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
           placeholder='Ex: "Entregamos em até 3 dias úteis para todo o Brasil." ou "Frete grátis acima de R$ 200."'
           value={novo}
           onChange={e => setNovo(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) adicionar() }}
           style={{ marginBottom: 12 }}
         />
         <button onClick={adicionar} disabled={saving || !novo.trim()} className="btn-primary"
@@ -113,9 +165,9 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
                         border: `1px solid ${item.active ? 'rgba(34,197,94,0.25)' : C.border}` }}>
                       {item.active ? 'ATIVO' : 'INATIVO'}
                     </button>
-                    <button onClick={() => { setEditId(item.id); setEditText(item.content) }} title="Editar"
+                    <button onClick={() => { setEditId(item.id); setEditText(item.content) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontFamily: FONT.jb, fontSize: 11 }}>editar</button>
-                    <button onClick={() => remover(item.id)} title="Remover"
+                    <button onClick={() => remover(item.id)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontFamily: FONT.jb, fontSize: 11 }}>remover</button>
                   </div>
                 </div>
