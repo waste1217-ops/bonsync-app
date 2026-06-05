@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { COPILOTO_TOOLS, runCopilotoTool } from '@/lib/copilotoTools'
+import { copilotoTools, runCopilotoTool } from '@/lib/copilotoTools'
 
 export const maxDuration = 60
 
@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { data: profile } = await supabase
-    .from('profiles').select('company_name').eq('id', user.id).single()
+    .from('profiles').select('company_name, role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
+  const TOOLS = copilotoTools(isAdmin)
 
   let body: { messages?: ChatMsg[]; attachments?: Attachment[] }
   try { body = await req.json() }
@@ -38,16 +40,19 @@ export async function POST(req: NextRequest) {
   }
 
   const empresa = profile?.company_name || 'sua empresa'
-  const systemPrompt = [
+  const systemPrompt = (isAdmin ? [
+    'Você é o Copiloto da Bonsync no modo ADMINISTRADOR. Tem visão de TODA a plataforma: todos os clientes, agentes, conversas, negócios e finanças.',
+    'Use as ferramentas para responder com dados reais. Em negócios e conversas, o campo "cliente_bonsync" indica a QUAL cliente da Bonsync aquele registro pertence — use isso para localizar coisas (ex.: "a Loja Capuccino é um lead do cliente X").',
+    'Ferramentas de admin: listar_clientes (carteira) e consultar_financeiro (MRR/ARR).',
+  ] : [
     `Você é o Copiloto Bonsync, assistente de análise de dados de ${empresa}.`,
-    'Você tem DUAS fontes de dados:',
-    '1. Ferramentas de leitura dos dados da Bonsync (atendimentos, conversas, leads e negócios que passaram pelo agente de WhatsApp). Use as ferramentas quando a pergunta for sobre números, vendas, atendimentos, clientes ou desempenho.',
-    '2. Arquivos que o usuário anexa (planilhas, PDFs, documentos) — úteis para dados históricos ou de fora do WhatsApp.',
-    'Combine as duas fontes quando fizer sentido (ex.: somar negócios fechados no WhatsApp com os de uma planilha enviada).',
+    'Use as ferramentas para consultar os dados de atendimento da empresa (conversas, leads, negócios do WhatsApp) e responda com números reais.',
+  ]).concat([
+    'O usuário também pode anexar arquivos (planilhas, PDFs) com dados históricos ou de fora do WhatsApp — combine as fontes quando fizer sentido.',
     'IMPORTANTE: você é SOMENTE LEITURA. Nunca afirme que alterou, criou ou apagou algo — você apenas analisa e relata.',
     'Responda sempre em português brasileiro, de forma clara e objetiva. Use tabelas, listas e destaques.',
     'Se um dado não existir nas ferramentas nem nos arquivos, diga isso com honestidade — não invente.',
-  ].join('\n')
+  ]).join('\n')
 
   // Monta o histórico. Os anexos vão na ÚLTIMA mensagem do usuário (reenviados a cada turno
   // para manter o contexto disponível em perguntas de acompanhamento).
@@ -80,7 +85,7 @@ export async function POST(req: NextRequest) {
       model: 'claude-sonnet-4-5',
       max_tokens: 2048,
       system: systemPrompt,
-      tools: COPILOTO_TOOLS,
+      tools: TOOLS,
       messages: anthropicMessages,
     })
     totalIn += response.usage?.input_tokens ?? 0
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
       const toolResults: Anthropic.ToolResultBlockParam[] = []
       for (const block of response.content) {
         if (block.type === 'tool_use') {
-          const result = await runCopilotoTool(supabase, block.name, block.input)
+          const result = await runCopilotoTool(supabase, block.name, block.input, isAdmin)
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
         model: 'claude-sonnet-4-5',
         max_tokens: 2048,
         system: systemPrompt,
-        tools: COPILOTO_TOOLS,
+        tools: TOOLS,
         messages: anthropicMessages,
       })
       totalIn += response.usage?.input_tokens ?? 0
