@@ -5,23 +5,23 @@
  */
 import type { CSSProperties } from 'react'
 
-/* ── Tokens ── */
+/* ── Tokens (via CSS vars — trocam com o tema claro/escuro) ── */
 export const C = {
-  void:     '#060a10',
-  deep:     '#08101f',
-  surface:  '#0b1a36',
-  raise:    '#0e2142',
-  blue:     'oklch(55% 0.24 225)',
-  blueM:    'oklch(40% 0.24 225)',
-  blueB:    'oklch(72% 0.21 225)',
-  white:    '#eef2ff',
-  muted:    '#7286a0',
-  faint:    '#3d4d63',
-  border:   'rgba(80,130,210,0.16)',
-  borderHi: 'rgba(90,150,230,0.36)',
-  green:    '#22c55e',
-  red:      '#e84040',
-  yellow:   '#f59e0b',
+  void:     'var(--c-void)',
+  deep:     'var(--c-deep)',
+  surface:  'var(--c-surface)',
+  raise:    'var(--c-raise)',
+  blue:     'var(--c-blue)',
+  blueM:    'var(--c-blue-m)',
+  blueB:    'var(--c-blue-b)',
+  white:    'var(--c-white)',
+  muted:    'var(--c-muted)',
+  faint:    'var(--c-faint)',
+  border:   'var(--c-border)',
+  borderHi: 'var(--c-border-hi)',
+  green:    'var(--c-green)',
+  red:      'var(--c-red)',
+  yellow:   'var(--c-yellow)',
 }
 
 export const FONT = {

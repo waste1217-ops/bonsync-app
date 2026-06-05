@@ -68,17 +68,11 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
       </div>
 
       {/* Chat messages */}
-      <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--c-border)' }}>
-          {/* Terminal bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {['#e84040', '#f59e0b', '#22c55e'].map(c => (
-              <div key={c} style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />
-            ))}
-            <span style={{ ...S.mono, color: 'var(--c-muted)', fontSize: 10, marginLeft: 8 }}>
-              histórico da conversa
-            </span>
-          </div>
+      <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--c-border)' }}>
+          <span style={{ fontFamily: 'var(--font-dm)', fontSize: 14, fontWeight: 600, color: 'var(--c-white)' }}>
+            Histórico da conversa
+          </span>
         </div>
 
         <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 600, overflowY: 'auto' }}>
@@ -95,8 +89,8 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
                 background: msg.role === 'user' ? 'rgba(80,130,210,0.12)' : 'oklch(55% 0.24 225/0.2)',
                 border: `1px solid ${msg.role === 'user' ? 'var(--c-border)' : 'var(--c-border-hi)'}`,
               }}>
-                <span style={{ fontFamily: 'var(--font-jb)', fontSize: 9, color: msg.role === 'user' ? 'var(--c-muted)' : 'var(--c-blue-b)' }}>
-                  {msg.role === 'user' ? 'USR' : 'AI'}
+                <span style={{ fontFamily: 'var(--font-dm)', fontSize: 11, fontWeight: 600, color: msg.role === 'user' ? 'var(--c-muted)' : 'var(--c-blue-b)' }}>
+                  {msg.role === 'user' ? '🙂' : 'IA'}
                 </span>
               </div>
               {/* Bubble */}
@@ -110,21 +104,12 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
                 <p style={{ fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-white)', lineHeight: 1.65, fontWeight: 300, marginBottom: 6 }}>
                   {msg.content}
                 </p>
-                <span style={{ fontFamily: 'var(--font-jb)', fontSize: 10, color: 'var(--c-faint)' }}>
+                <span style={{ fontFamily: 'var(--font-dm)', fontSize: 11, color: 'var(--c-faint)' }}>
                   {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Terminal footer */}
-        <div style={{ padding: '10px 20px', borderTop: '1px solid var(--c-border)', background: 'rgba(0,0,0,0.2)' }}>
-          <span style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-muted)' }}>
-            <span style={{ color: 'var(--c-blue-b)' }}>$</span> status:{' '}
-            <span style={{ color: statusStyle[conversa.status]?.color as string }}>{statusLabel[conversa.status].toLowerCase()}</span>
-            {' '}<span className="animate-blink">█</span>
-          </span>
         </div>
       </div>
     </div>

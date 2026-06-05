@@ -5,7 +5,7 @@
    (evita conflitos com o Tailwind v4 internamente)
 ───────────────────────────────────────────── */
 :root {
-  /* Cores */
+  /* Tema escuro (padrão) */
   --c-void:       #060a10;
   --c-deep:       #08101f;
   --c-surface:    #0b1a36;
@@ -21,6 +21,25 @@
   --c-green:      #22c55e;
   --c-red:        #e84040;
   --c-yellow:     #f59e0b;
+}
+
+/* Tema claro — aplicado quando um ancestral tem data-theme="light" */
+[data-theme="light"] {
+  --c-void:       #f6f8fc;   /* fundo geral */
+  --c-deep:       #ffffff;   /* cartões */
+  --c-surface:    #eef2f9;   /* superfícies */
+  --c-raise:      #e6ecf6;
+  --c-blue:       oklch(52% 0.20 225);
+  --c-blue-m:     oklch(60% 0.16 225);
+  --c-blue-b:     oklch(48% 0.20 225);  /* azul mais escuro p/ ler no claro */
+  --c-white:      #0b1220;   /* texto principal (escuro no claro) */
+  --c-muted:      #5b6b82;
+  --c-faint:      #8a99ad;
+  --c-border:     rgba(20,40,80,0.12);
+  --c-border-hi:  rgba(40,90,180,0.30);
+  --c-green:      #16a34a;
+  --c-red:        #dc2626;
+  --c-yellow:     #d97706;
 }
 
 /* ─────────────────────────────────────────────
