@@ -28,6 +28,7 @@ const adminNav = [
   { href: '/admin/assistente',label: 'Copiloto',       icon: SparkIcon },
   { href: '/admin/clientes',  label: 'Clientes',       icon: UsersIcon },
   { href: '/admin/agentes',   label: 'Agentes',        icon: BoltIcon },
+  { href: '/admin/instancias',label: 'WhatsApp',       icon: ChatIcon },
   { href: '/admin/conversas', label: 'Conversas',      icon: ChatIcon },
   { href: '/admin/negocios',  label: 'Negócios',       icon: DealIcon },
   { href: '/admin/metricas',  label: 'Métricas',       icon: ChartIcon },
