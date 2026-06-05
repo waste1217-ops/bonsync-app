@@ -16,7 +16,7 @@ export default function NovoClientePage() {
   const [instanciaEdit, setInstanciaEdit] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
-  const [done, setDone]       = useState<null | { connectUrl: string | null; instancia: string | null }>(null)
+  const [done, setDone]       = useState<null | { connectUrl: string | null; instancia: string | null; emailOk: boolean }>(null)
   const [copiado, setCopiado] = useState(false)
   const router = useRouter()
 
@@ -47,8 +47,18 @@ export default function NovoClientePage() {
       else { setError('Cliente criado, mas falhou ao criar a instância: ' + (d2.error ?? '')) }
     }
 
+    // 3. Envia e-mail de boas-vindas (credenciais + link de conexão)
+    let emailOk = false
+    try {
+      const r3 = await fetch('/api/admin/send-onboarding', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: form.email, companyName: form.company_name, password: form.password, connectUrl }),
+      })
+      emailOk = r3.ok
+    } catch { emailOk = false }
+
     setLoading(false)
-    setDone({ connectUrl, instancia: instCriada })
+    setDone({ connectUrl, instancia: instCriada, emailOk })
   }
 
   function copiar() {
@@ -63,7 +73,18 @@ export default function NovoClientePage() {
     return (
       <div className="animate-slide-up" style={{ maxWidth: 560 }}>
         <h1 style={T.h1}>Cliente criado ✓</h1>
-        <p style={{ ...T.sub, marginTop: 4, marginBottom: 24 }}>Envie estes dados ao cliente para ele começar.</p>
+        <p style={{ ...T.sub, marginTop: 4, marginBottom: 16 }}>
+          {done.emailOk ? 'Enviamos um e-mail de boas-vindas com tudo isso. Aqui está uma cópia:' : 'Envie estes dados ao cliente para ele começar.'}
+        </p>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '10px 14px', borderRadius: 8,
+          background: done.emailOk ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+          border: `1px solid ${done.emailOk ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}`,
+          fontFamily: FONT.dm, fontSize: 13, color: done.emailOk ? C.green : C.yellow,
+        }}>
+          {done.emailOk ? `✓ E-mail enviado para ${form.email}` : '⚠ Não foi possível enviar o e-mail — envie os dados manualmente (abaixo).'}
+        </div>
 
         <div style={{ ...CARD, marginBottom: 16 }}>
           <p style={{ ...T.mono, color: C.muted, marginBottom: 12 }}>Acesso ao painel</p>
