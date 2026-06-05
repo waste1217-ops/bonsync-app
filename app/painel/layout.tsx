@@ -18,7 +18,7 @@ export default async function PainelLayout({ children }: { children: React.React
     <ClientThemeWrapper>
       <div style={{
         display: 'flex',
-        height: '100vh',
+        height: '100%',
         width: '100%',
         overflow: 'hidden',
         background: 'var(--c-void)',

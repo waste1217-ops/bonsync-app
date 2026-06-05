@@ -24,7 +24,16 @@ export function ClientThemeWrapper({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div data-theme={theme} style={{ display: 'contents' }}>
+    <div
+      data-theme={theme}
+      style={{
+        // No painel do cliente, a fonte "mono" vira a sans amigável (menos cara de código).
+        // O admin não usa este wrapper, então mantém o monoespaçado técnico.
+        ['--font-jb' as any]: 'var(--font-dm)',
+        height: '100vh',
+        overflow: 'hidden',
+      }}
+    >
       {/* Botão flutuante de tema */}
       {mounted && (
         <button
