@@ -4,17 +4,17 @@
  * Ajuste conforme a tabela oficial / sua margem.
  */
 
-// USD por 1 milhão de tokens [input, output]
+// USD por 1 milhão de tokens [input, output] — preços de lista da Anthropic
 const PRICING: Record<string, { in: number; out: number }> = {
-  'claude-opus-4-5':           { in: 5,    out: 25 },
+  'claude-opus-4-5':           { in: 15,   out: 75 },
   'claude-sonnet-4-5':         { in: 3,    out: 15 },
   'claude-haiku-4-5-20251001': { in: 1,    out: 5 },
   'claude-3-5-haiku-latest':   { in: 0.8,  out: 4 },
   'default':                   { in: 3,    out: 15 }, // fallback (sonnet)
 }
 
-// Cotação USD→BRL (ajuste conforme necessário, ou puxe de uma API depois)
-const USD_TO_BRL = 5.5
+// Cotação USD→BRL
+const USD_TO_BRL = 5.10
 
 export interface TokenTotals {
   inputTokens: number
