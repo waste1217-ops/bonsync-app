@@ -51,10 +51,28 @@ export function Copiloto() {
   const [loading, setLoading]         = useState(false)
   const [uploading, setUploading]     = useState(false)
   const [error, setError]             = useState('')
+  const [carregando, setCarregando]   = useState(true)
   const fileRef  = useRef<HTMLInputElement>(null)
   const endRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+  // Carrega o histórico salvo ao abrir
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/assistant/history', { cache: 'no-store' })
+        if (res.ok) { const d = await res.json(); setMessages(d.messages ?? []) }
+      } catch {}
+      setCarregando(false)
+    })()
+  }, [])
+
+  async function novaConversa() {
+    if (!confirm('Limpar esta conversa? O histórico será apagado.')) return
+    await fetch('/api/assistant/history', { method: 'DELETE' })
+    setMessages([]); setAttachments([]); setError('')
+  }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -90,19 +108,17 @@ export function Copiloto() {
       const res = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, attachments }),
+        body: JSON.stringify({ message: content, attachments }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error ?? 'Erro.')
-        setMessages(messages) // desfaz
         setLoading(false)
         return
       }
       setMessages([...newMessages, { role: 'assistant', content: data.reply }])
     } catch {
       setError('Erro de conexão.')
-      setMessages(messages)
     }
     setLoading(false)
   }
@@ -112,11 +128,18 @@ export function Copiloto() {
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={T.h1}>Copiloto</h1>
-        <p style={{ ...T.sub, marginTop: 4 }}>
-          Envie planilhas, PDFs ou documentos e converse com a IA sobre eles.
-        </p>
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h1 style={T.h1}>Copiloto</h1>
+          <p style={{ ...T.sub, marginTop: 4 }}>
+            Pergunte sobre seus dados, envie planilhas e documentos. O histórico fica salvo.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          <button onClick={novaConversa} className="btn-ghost" style={{ fontSize: 12, padding: '8px 16px', whiteSpace: 'nowrap' }}>
+            Nova conversa
+          </button>
+        )}
       </div>
 
       {/* Anexos */}
