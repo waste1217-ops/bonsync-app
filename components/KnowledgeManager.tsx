@@ -27,6 +27,7 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
   const [editId, setEditId]     = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [busy, setBusy]         = useState('')
+  const [drafts, setDrafts]     = useState<Record<string, string>>({})
 
   async function load() {
     const [{ data: kb }, { data: sug }] = await Promise.all([
@@ -62,8 +63,10 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
   }
 
   async function aprovar(s: Suggestion) {
+    const content = (drafts[s.id] ?? s.content).trim()
+    if (!content) return
     setBusy(s.id)
-    await supabase.from('knowledge_base').insert({ agent_id: agentId, content: s.content, active: true })
+    await supabase.from('knowledge_base').insert({ agent_id: agentId, content, active: true })
     await supabase.from('knowledge_suggestions').update({ status: 'approved' }).eq('id', s.id)
     setBusy(''); load()
   }
@@ -96,14 +99,18 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {suggestions.map(s => (
               <div key={s.id} style={{ background: C.deep, border: `1px solid ${C.borderHi}`, borderRadius: 10, padding: '16px 18px' }}>
-                <p style={{ fontFamily: FONT.dm, fontSize: 14.5, color: C.white, lineHeight: 1.6, fontWeight: 300, marginBottom: s.reason ? 8 : 14 }}>
-                  {s.content}
-                </p>
                 {s.reason && (
-                  <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
+                  <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
                     💡 {s.reason}
                   </p>
                 )}
+                <label style={{ ...T.label, marginBottom: 6 }}>Revise antes de aprovar</label>
+                <textarea
+                  className="field" rows={3}
+                  value={drafts[s.id] ?? s.content}
+                  onChange={e => setDrafts({ ...drafts, [s.id]: e.target.value })}
+                  style={{ marginBottom: 12 }}
+                />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => aprovar(s)} disabled={!!busy} className="btn-primary" style={{ fontSize: 12, padding: '8px 16px' }}>
                     {busy === s.id ? '…' : 'Aprovar'}
