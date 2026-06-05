@@ -42,6 +42,9 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <p style={{ ...T.sub, marginTop: 4 }}>{cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a href={`/admin/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize: 13, padding: '10px 20px' }}>
+              Editar
+            </a>
             <ResetPasswordButton clientId={id} clientName={cliente.company_name || cliente.email} />
             <DeleteButton
               label="Excluir cliente"
