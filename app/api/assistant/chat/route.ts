@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { COPILOTO_TOOLS, runCopilotoTool } from '@/lib/copilotoTools'
 
 export const maxDuration = 60
 
@@ -39,11 +40,13 @@ export async function POST(req: NextRequest) {
   const empresa = profile?.company_name || 'sua empresa'
   const systemPrompt = [
     `Você é o Copiloto Bonsync, assistente de análise de dados de ${empresa}.`,
-    'Analise os arquivos enviados (planilhas, documentos, PDFs, imagens) e responda às perguntas.',
-    'Responda sempre em português brasileiro, de forma clara e objetiva.',
-    'Use tabelas, listas e destaques quando ajudarem a entender.',
-    'Se um cálculo for pedido, mostre o raciocínio de forma resumida.',
-    'Se a informação não estiver nos arquivos, diga isso com honestidade.',
+    'Você tem DUAS fontes de dados:',
+    '1. Ferramentas de leitura dos dados da Bonsync (atendimentos, conversas, leads e negócios que passaram pelo agente de WhatsApp). Use as ferramentas quando a pergunta for sobre números, vendas, atendimentos, clientes ou desempenho.',
+    '2. Arquivos que o usuário anexa (planilhas, PDFs, documentos) — úteis para dados históricos ou de fora do WhatsApp.',
+    'Combine as duas fontes quando fizer sentido (ex.: somar negócios fechados no WhatsApp com os de uma planilha enviada).',
+    'IMPORTANTE: você é SOMENTE LEITURA. Nunca afirme que alterou, criou ou apagou algo — você apenas analisa e relata.',
+    'Responda sempre em português brasileiro, de forma clara e objetiva. Use tabelas, listas e destaques.',
+    'Se um dado não existir nas ferramentas nem nos arquivos, diga isso com honestidade — não invente.',
   ].join('\n')
 
   // Monta o histórico. Os anexos vão na ÚLTIMA mensagem do usuário (reenviados a cada turno
@@ -72,12 +75,45 @@ export async function POST(req: NextRequest) {
 
   try {
     const client = new Anthropic({ apiKey, timeout: 55000, maxRetries: 1 })
-    const response = await client.messages.create({
+    let totalIn = 0, totalOut = 0
+    let response = await client.messages.create({
       model: 'claude-sonnet-4-5',
       max_tokens: 2048,
       system: systemPrompt,
+      tools: COPILOTO_TOOLS,
       messages: anthropicMessages,
     })
+    totalIn += response.usage?.input_tokens ?? 0
+    totalOut += response.usage?.output_tokens ?? 0
+
+    // Loop de uso de ferramentas (máx 5 rodadas por segurança)
+    let rodadas = 0
+    while (response.stop_reason === 'tool_use' && rodadas < 5) {
+      rodadas++
+      const toolResults: Anthropic.ToolResultBlockParam[] = []
+      for (const block of response.content) {
+        if (block.type === 'tool_use') {
+          const result = await runCopilotoTool(supabase, block.name, block.input)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        }
+      }
+      anthropicMessages.push({ role: 'assistant', content: response.content })
+      anthropicMessages.push({ role: 'user', content: toolResults })
+
+      response = await client.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 2048,
+        system: systemPrompt,
+        tools: COPILOTO_TOOLS,
+        messages: anthropicMessages,
+      })
+      totalIn += response.usage?.input_tokens ?? 0
+      totalOut += response.usage?.output_tokens ?? 0
+    }
 
     const text = response.content
       .filter(b => b.type === 'text')
@@ -86,11 +122,8 @@ export async function POST(req: NextRequest) {
       .trim()
 
     return NextResponse.json({
-      reply: text,
-      usage: {
-        input_tokens:  response.usage?.input_tokens  ?? 0,
-        output_tokens: response.usage?.output_tokens ?? 0,
-      },
+      reply: text || 'Não consegui gerar uma resposta. Pode reformular?',
+      usage: { input_tokens: totalIn, output_tokens: totalOut },
     })
   } catch (err: any) {
     console.error('[assistant/chat] erro:', err.message)
