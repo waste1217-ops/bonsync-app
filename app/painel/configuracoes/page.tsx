@@ -12,6 +12,7 @@ export default function PainelConfigPage() {
   const [cfg, setCfg] = useState({
     prompt: '', tom: 'profissional', saudacao: '',
     escalation_mode: 'on_demand', escalate_after_messages: 0,
+    digest_frequency: 'off', digest_channel: 'email',
   })
   const supabase = createClient()
 
@@ -27,6 +28,8 @@ export default function PainelConfigPage() {
           saudacao:                data.config?.saudacao                ?? '',
           escalation_mode:         data.config?.escalation_mode         ?? 'on_demand',
           escalate_after_messages: data.config?.escalate_after_messages ?? 0,
+          digest_frequency:        data.config?.digest_frequency        ?? 'off',
+          digest_channel:          data.config?.digest_channel          ?? 'email',
         })
       }
       setLoading(false)
@@ -128,6 +131,39 @@ export default function PainelConfigPage() {
                   style={{ width: 120 }} />
                 <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
                   Limite de segurança. Use <b style={{ color: C.muted }}>0</b> para desligar. Se a conversa passar desse número de mensagens, o agente escala automaticamente.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Resumo automático */}
+        <div style={sectionStyle}>
+          <h2 style={sectionTitle}>Resumo automático</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={T.label}>Receber resumo do agente</label>
+              <select className="field" value={cfg.digest_frequency}
+                onChange={e => setCfg({ ...cfg, digest_frequency: e.target.value })}>
+                <option value="off">Desligado</option>
+                <option value="daily">Diário (todo dia de manhã)</option>
+                <option value="weekly">Semanal (toda segunda-feira)</option>
+              </select>
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Um resumo com atendimentos e negócios fechados, enviado automaticamente.
+              </p>
+            </div>
+            {cfg.digest_frequency !== 'off' && (
+              <div>
+                <label style={T.label}>Enviar por</label>
+                <select className="field" value={cfg.digest_channel}
+                  onChange={e => setCfg({ ...cfg, digest_channel: e.target.value })}>
+                  <option value="email">E-mail</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="both">E-mail + WhatsApp</option>
+                </select>
+                <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                  E-mail vai para o seu login. WhatsApp vai para o número de escalonamento configurado.
                 </p>
               </div>
             )}
