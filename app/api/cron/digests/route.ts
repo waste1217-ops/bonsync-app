@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
   const agoraBRT = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
   const isMonday = agoraBRT.getDay() === 1
 
+  const force = req.nextUrl.searchParams.get('force') === '1'
+
   const { data: agents } = await admin
     .from('agents')
     .select('id, name, config, profiles(email, company_name)')
@@ -42,8 +44,10 @@ export async function GET(req: NextRequest) {
   for (const a of (agents ?? []) as any[]) {
     const cfg = a.config || {}
     const freq = cfg.digest_frequency || 'off'
-    if (freq === 'off') continue
-    if (freq === 'weekly' && !isMonday) continue
+    if (!force) {
+      if (freq === 'off') continue
+      if (freq === 'weekly' && !isMonday) continue
+    }
 
     const dias = freq === 'weekly' ? 7 : 1
     const since = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString()
@@ -64,7 +68,7 @@ export async function GET(req: NextRequest) {
     const fechados = (fechadosData ?? []).map((f: any) => ({ empresa: f.empresa, valor: f.valor }))
 
     // Nada relevante? evita spam de resumo vazio (só envia se houve atividade)
-    if (conversas.total === 0 && fechados.length === 0) continue
+    if (!force && conversas.total === 0 && fechados.length === 0) continue
 
     const empresa = a.profiles?.company_name || 'sua empresa'
     const email = a.profiles?.email
