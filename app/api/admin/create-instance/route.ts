@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -59,7 +60,19 @@ export async function POST(req: NextRequest) {
       if (conn.ok) { const d = await conn.json(); qr = d.base64 || d.qrcode?.base64 || '' }
     }
 
-    return NextResponse.json({ success: true, instance, qr })
+    // 4. Cria token de conexão pública (link ao vivo para o cliente escanear)
+    let connectUrl: string | null = null
+    try {
+      const admin = createAdminClient()
+      const { data: tok } = await admin
+        .from('instance_connect_tokens')
+        .insert({ instance })
+        .select('token')
+        .single()
+      if (tok) connectUrl = `${new URL(req.url).origin}/conectar/${tok.token}`
+    } catch (e) { /* token é opcional */ }
+
+    return NextResponse.json({ success: true, instance, qr, connectUrl })
   } catch (err: any) {
     console.error('[create-instance]', err.message)
     return NextResponse.json({ error: 'Falha ao criar instância.' }, { status: 500 })

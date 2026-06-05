@@ -2,124 +2,170 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { C, T, L, CARD, FONT } from '@/lib/styles'
+import { C, T, CARD, FONT } from '@/lib/styles'
+
+function slugify(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30)
+}
 
 export default function NovoClientePage() {
-  const [form, setForm]       = useState({ company_name: '', email: '', password: '' })
+  const [form, setForm] = useState({ company_name: '', email: '', password: '' })
+  const [criarInstancia, setCriarInstancia] = useState(true)
+  const [instancia, setInstancia] = useState('')
+  const [instanciaEdit, setInstanciaEdit] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
-  const [success, setSuccess] = useState(false)
+  const [done, setDone]       = useState<null | { connectUrl: string | null; instancia: string | null }>(null)
+  const [copiado, setCopiado] = useState(false)
   const router = useRouter()
+
+  const instanciaFinal = (instanciaEdit ? instancia : slugify(form.company_name))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
 
+    // 1. Cria o usuário/cliente
     const res = await fetch('/api/admin/create-user', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(form),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
     })
-
     const data = await res.json()
+    if (!res.ok) { setError(data.error ?? 'Erro ao criar cliente.'); setLoading(false); return }
 
-    if (!res.ok) {
-      setError(data.error ?? 'Erro ao criar cliente.')
-      setLoading(false)
-      return
+    // 2. Opcional: cria instância de WhatsApp
+    let connectUrl: string | null = null
+    let instCriada: string | null = null
+    if (criarInstancia && instanciaFinal) {
+      const r2 = await fetch('/api/admin/create-instance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: instanciaFinal }),
+      })
+      const d2 = await r2.json()
+      if (r2.ok) { connectUrl = d2.connectUrl ?? null; instCriada = d2.instance ?? instanciaFinal }
+      else { setError('Cliente criado, mas falhou ao criar a instância: ' + (d2.error ?? '')) }
     }
 
-    setSuccess(true)
-    setTimeout(() => router.push('/admin/clientes'), 1500)
+    setLoading(false)
+    setDone({ connectUrl, instancia: instCriada })
   }
 
+  function copiar() {
+    if (done?.connectUrl) {
+      navigator.clipboard.writeText(done.connectUrl)
+      setCopiado(true); setTimeout(() => setCopiado(false), 2000)
+    }
+  }
+
+  // ── Tela de sucesso ──
+  if (done) {
+    return (
+      <div className="animate-slide-up" style={{ maxWidth: 560 }}>
+        <h1 style={T.h1}>Cliente criado ✓</h1>
+        <p style={{ ...T.sub, marginTop: 4, marginBottom: 24 }}>Envie estes dados ao cliente para ele começar.</p>
+
+        <div style={{ ...CARD, marginBottom: 16 }}>
+          <p style={{ ...T.mono, color: C.muted, marginBottom: 12 }}>Acesso ao painel</p>
+          <div style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white, lineHeight: 1.9 }}>
+            <div>🔗 <span style={{ color: C.muted }}>app.bonsync.com.br/login</span></div>
+            <div>📧 {form.email}</div>
+            <div>🔑 {form.password}</div>
+          </div>
+        </div>
+
+        {done.instancia && (
+          <div style={{ ...CARD, marginBottom: 16, border: `1px solid ${C.borderHi}` }}>
+            <p style={{ ...T.mono, color: C.muted, marginBottom: 8 }}>Conectar o WhatsApp ({done.instancia})</p>
+            {done.connectUrl ? (
+              <>
+                <p style={{ ...T.sub, fontSize: 13, marginBottom: 12 }}>
+                  Envie este link ao cliente. Ele abre, escaneia o QR (que se renova sozinho) e pronto.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="field" readOnly value={done.connectUrl} style={{ flex: 1, fontSize: 12 }} />
+                  <button onClick={copiar} className="btn-primary" style={{ fontSize: 12, padding: '10px 18px', whiteSpace: 'nowrap' }}>
+                    {copiado ? 'Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p style={{ ...T.sub, fontSize: 13 }}>Instância criada, mas não foi possível gerar o link. Use a página de status para conectar.</p>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => router.push('/admin/clientes')} className="btn-primary">Concluir</button>
+          {done.connectUrl && (
+            <a href={done.connectUrl} target="_blank" rel="noreferrer" className="btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', padding: '13px 26px', fontSize: 13 }}>
+              Abrir QR agora
+            </a>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Formulário ──
   return (
     <div className="animate-slide-up" style={{ maxWidth: 520 }}>
-
-      {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <a href="/admin/clientes"
-          style={{ ...T.mono, color: C.muted, fontSize: 10, display: 'inline-block', marginBottom: 16 }}>
-          ← Voltar
-        </a>
+        <a href="/admin/clientes" style={{ ...T.mono, color: C.muted, fontSize: 10, display: 'inline-block', marginBottom: 16 }}>← Voltar</a>
         <h1 style={T.h1}>Novo cliente</h1>
-        <p style={{ ...T.sub, marginTop: 4 }}>Crie o acesso de um novo cliente à plataforma.</p>
+        <p style={{ ...T.sub, marginTop: 4 }}>Crie o acesso do cliente e, opcionalmente, o WhatsApp dele.</p>
       </div>
 
-      {/* Sucesso */}
-      {success && (
-        <div style={{
-          background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
-          borderRadius: 10, padding: '14px 20px', marginBottom: 20,
-          color: C.green, fontFamily: FONT.dm, fontSize: 14,
-        }}>
-          ✓ Cliente criado com sucesso! Redirecionando…
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-        <div>
-          <label style={T.label}>Nome da empresa</label>
-          <input className="field" type="text" required placeholder="Acme Ltda."
-            value={form.company_name}
-            onChange={e => setForm({ ...form, company_name: e.target.value })} />
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={T.label}>Nome da empresa</label>
+            <input className="field" type="text" required placeholder="Acme Ltda."
+              value={form.company_name} onChange={e => setForm({ ...form, company_name: e.target.value })} />
+          </div>
+          <div>
+            <label style={T.label}>E-mail de acesso</label>
+            <input className="field" type="email" required placeholder="contato@acme.com.br"
+              value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <label style={T.label}>Senha inicial</label>
+            <input className="field" type="text" required minLength={8} placeholder="Mínimo 8 caracteres"
+              value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+          </div>
         </div>
 
-        <div>
-          <label style={T.label}>E-mail de acesso</label>
-          <input className="field" type="email" required placeholder="contato@acme.com.br"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })} />
+        {/* Instância */}
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={criarInstancia} onChange={e => setCriarInstancia(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: 'oklch(55% 0.24 225)' }} />
+            <span style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>Criar instância de WhatsApp para este cliente</span>
+          </label>
+          {criarInstancia && (
+            <div>
+              <label style={T.label}>Nome da instância</label>
+              <input className="field" type="text"
+                value={instanciaEdit ? instancia : slugify(form.company_name)}
+                onChange={e => { setInstanciaEdit(true); setInstancia(slugify(e.target.value)) }}
+                placeholder="gerado a partir do nome da empresa" />
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Use este mesmo nome ao criar o agente. Gera um link de conexão para o cliente.
+              </p>
+            </div>
+          )}
         </div>
 
-        <div>
-          <label style={T.label}>Senha inicial</label>
-          <input className="field" type="password" required minLength={8}
-            placeholder="Mínimo 8 caracteres"
-            value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })} />
-          <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
-            O cliente poderá alterar a senha após o primeiro acesso.
-          </p>
-        </div>
-
-        {/* Erro */}
         {error && (
-          <div style={{
-            background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.25)',
-            borderRadius: 8, padding: '12px 16px',
-            color: C.red, fontFamily: FONT.dm, fontSize: 13,
-          }}>
+          <div style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.25)', borderRadius: 8, padding: '12px 16px', color: C.red, fontFamily: FONT.dm, fontSize: 13 }}>
             {error}
           </div>
         )}
 
-        <button type="submit" className="btn-primary" disabled={loading || success}>
+        <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Criando…' : 'Criar cliente'}
         </button>
       </form>
-
-      {/* Info */}
-      <div style={{
-        marginTop: 16, background: C.void, border: `1px solid ${C.border}`,
-        borderRadius: 10, padding: '14px 18px',
-      }}>
-        <p style={{ ...T.mono, color: C.muted, marginBottom: 8 }}>Como funciona</p>
-        {[
-          'Usuário criado via service role — sem e-mail de confirmação',
-          'Cliente já pode logar imediatamente com as credenciais informadas',
-          'Role definido como "client" automaticamente',
-        ].map(f => (
-          <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.blueB} strokeWidth="2.5" strokeLinecap="round">
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-            <span style={{ fontFamily: FONT.dm, fontSize: 13, color: C.muted, fontWeight: 300 }}>{f}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
