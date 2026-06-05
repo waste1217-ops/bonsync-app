@@ -17,13 +17,24 @@ export default function EditarClientePage() {
   const [saved, setSaved]     = useState(false)
   const [email, setEmail]     = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [sub, setSub] = useState({ plan_name: 'Padrão', monthly_price: 0, status: 'trial' })
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('profiles').select('email, company_name').eq('id', id).single()
-      if (data) {
-        setEmail(data.email ?? '')
-        setCompanyName(data.company_name ?? '')
+      const [{ data: profile }, { data: subscription }] = await Promise.all([
+        supabase.from('profiles').select('email, company_name').eq('id', id).single(),
+        supabase.from('subscriptions').select('*').eq('client_id', id).single(),
+      ])
+      if (profile) {
+        setEmail(profile.email ?? '')
+        setCompanyName(profile.company_name ?? '')
+      }
+      if (subscription) {
+        setSub({
+          plan_name: subscription.plan_name ?? 'Padrão',
+          monthly_price: Number(subscription.monthly_price ?? 0),
+          status: subscription.status ?? 'trial',
+        })
       }
       setLoading(false)
     }
@@ -33,10 +44,20 @@ export default function EditarClientePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true); setError('')
-    const { error: err } = await supabase.from('profiles')
-      .update({ company_name: companyName })
-      .eq('id', id)
-    if (err) { setError(err.message); setSaving(false); return }
+
+    const { error: e1 } = await supabase.from('profiles')
+      .update({ company_name: companyName }).eq('id', id)
+    if (e1) { setError(e1.message); setSaving(false); return }
+
+    const { error: e2 } = await supabase.from('subscriptions').upsert({
+      client_id: id,
+      plan_name: sub.plan_name,
+      monthly_price: sub.monthly_price,
+      status: sub.status,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'client_id' })
+    if (e2) { setError(e2.message); setSaving(false); return }
+
     setSaved(true); setSaving(false)
     setTimeout(() => { router.push(`/admin/clientes/${id}`); router.refresh() }, 1000)
   }
@@ -50,7 +71,7 @@ export default function EditarClientePage() {
       <div style={{ marginBottom: 28 }}>
         <a href={`/admin/clientes/${id}`} style={{ ...T.mono, color: C.muted, fontSize: 10, display: 'inline-block', marginBottom: 16 }}>← Voltar</a>
         <h1 style={T.h1}>Editar cliente</h1>
-        <p style={{ ...T.sub, marginTop: 4 }}>Ajuste os dados do cliente.</p>
+        <p style={{ ...T.sub, marginTop: 4 }}>Ajuste os dados e a assinatura do cliente.</p>
       </div>
 
       {saved && (
@@ -59,19 +80,51 @@ export default function EditarClientePage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div>
-          <label style={T.label}>Nome da empresa</label>
-          <input className="field" type="text" required value={companyName}
-            onChange={e => setCompanyName(e.target.value)} />
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Dados */}
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 15, color: C.white, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>Dados</h2>
+          <div>
+            <label style={T.label}>Nome da empresa</label>
+            <input className="field" type="text" required value={companyName}
+              onChange={e => setCompanyName(e.target.value)} />
+          </div>
+          <div>
+            <label style={T.label}>E-mail de acesso</label>
+            <input className="field" type="email" value={email} disabled
+              style={{ opacity: 0.6, cursor: 'not-allowed' }} />
+            <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+              O e-mail não pode ser alterado aqui. Para trocar a senha, use "Redefinir senha".
+            </p>
+          </div>
         </div>
-        <div>
-          <label style={T.label}>E-mail de acesso</label>
-          <input className="field" type="email" value={email} disabled
-            style={{ opacity: 0.6, cursor: 'not-allowed' }} />
-          <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
-            O e-mail de login não pode ser alterado aqui. Para trocar a senha, use "Redefinir senha" na página do cliente.
-          </p>
+
+        {/* Assinatura */}
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 15, color: C.white, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>Assinatura</h2>
+          <div>
+            <label style={T.label}>Status</label>
+            <select className="field" value={sub.status} onChange={e => setSub({ ...sub, status: e.target.value })}>
+              <option value="trial">Em teste</option>
+              <option value="active">Ativo (pagante)</option>
+              <option value="cancelled">Cancelado</option>
+            </select>
+          </div>
+          <div>
+            <label style={T.label}>Plano</label>
+            <input className="field" type="text" value={sub.plan_name}
+              onChange={e => setSub({ ...sub, plan_name: e.target.value })}
+              placeholder="Ex: Essencial, Pro, Enterprise" />
+          </div>
+          <div>
+            <label style={T.label}>Valor mensal (R$)</label>
+            <input className="field" type="number" min={0} step="0.01" value={sub.monthly_price}
+              onChange={e => setSub({ ...sub, monthly_price: Number(e.target.value) })}
+              style={{ width: 160 }} />
+            <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+              Entra no MRR só quando o status for "Ativo".
+            </p>
+          </div>
         </div>
 
         {error && (

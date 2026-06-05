@@ -5,16 +5,22 @@ import { estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 export default async function AdminOverviewPage() {
   const supabase = await createClient()
 
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+
   const [
     { data: clientes },
     { data: agents },
     { count: totalConversas },
     { data: tokenTotals },
+    { data: subs },
+    { data: tokenMes },
   ] = await Promise.all([
     supabase.from('profiles').select('id, email, company_name, created_at, agents(id, name, status)').eq('role', 'client').order('created_at', { ascending: false }),
     supabase.from('agents').select('id, client_id, status, config'),
     supabase.from('conversations').select('*', { count: 'exact', head: true }),
     supabase.rpc('agent_token_totals'),
+    supabase.from('subscriptions').select('monthly_price, status'),
+    supabase.rpc('agent_token_totals_since', { since: inicioMes }),
   ])
 
   const cls = clientes ?? []
@@ -36,6 +42,19 @@ export default async function AdminOverviewPage() {
     totIn += inp; totOut += out
     custoTotal += estimateCostBRL({ inputTokens: inp, outputTokens: out }, agentModel[t.agent_id])
   })
+
+  // ── Financeiro ──
+  const subsList = subs ?? []
+  const mrr = subsList.filter((s: any) => s.status === 'active').reduce((acc: number, s: any) => acc + Number(s.monthly_price || 0), 0)
+  const arr = mrr * 12
+  const emTeste = subsList.filter((s: any) => s.status === 'trial').length
+  const cancelados = subsList.filter((s: any) => s.status === 'cancelled').length
+  // Custo de IA do mês atual
+  let custoMes = 0
+  ;(tokenMes ?? []).forEach((t: any) => {
+    custoMes += estimateCostBRL({ inputTokens: Number(t.input_tokens || 0), outputTokens: Number(t.output_tokens || 0) }, agentModel[t.agent_id])
+  })
+  const lucro = mrr - custoMes
 
   // ── Crescimento: novos clientes nos últimos 6 meses ──
   const meses: { label: string; count: number }[] = []
@@ -68,6 +87,25 @@ export default async function AdminOverviewPage() {
           <div key={k.label} style={CARD}>
             <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 10 }}>{k.label}</p>
             <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 34, color: k.color, letterSpacing: '-0.03em', lineHeight: 1 }}>
+              {k.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Financeiro */}
+      <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 12 }}>Financeiro</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 16, marginBottom: 16 }}>
+        {[
+          { label: 'MRR (receita/mês)', value: fmtBRL(mrr),    color: C.green },
+          { label: 'ARR (receita/ano)', value: fmtBRL(arr),    color: C.green },
+          { label: 'Lucro estimado (mês)', value: fmtBRL(lucro), color: lucro >= 0 ? C.green : C.red },
+          { label: 'Em teste',          value: emTeste,        color: C.yellow },
+          { label: 'Cancelados',        value: cancelados,     color: C.red },
+        ].map(k => (
+          <div key={k.label} style={CARD}>
+            <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 10 }}>{k.label}</p>
+            <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 24, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>
               {k.value}
             </p>
           </div>
