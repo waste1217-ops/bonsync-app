@@ -30,10 +30,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && (path.startsWith('/admin') || path.startsWith('/painel') || path === '/login')) {
-    // Busca role + active. Se a coluna 'active' ainda não existir no banco,
+    // Busca role + active + admin_level. Se alguma coluna ainda não existir,
     // a query falha — então caímos para um select só de 'role' (resiliente).
-    let profile: { role?: string; active?: boolean | null } | null = null
-    const full = await supabase.from('profiles').select('role, active').eq('id', user.id).single()
+    let profile: { role?: string; active?: boolean | null; admin_level?: string | null } | null = null
+    const full = await supabase.from('profiles').select('role, active, admin_level').eq('id', user.id).single()
     if (full.error) {
       const fallback = await supabase.from('profiles').select('role').eq('id', user.id).single()
       profile = fallback.data
@@ -41,8 +41,10 @@ export async function middleware(request: NextRequest) {
       profile = full.data
     }
 
-    const isAdmin   = profile?.role === 'admin'
-    const isBlocked = !isAdmin && profile?.active === false
+    const isAdmin     = profile?.role === 'admin'
+    // "Dono" nunca é bloqueado (admin sem nível definido = dono, retrocompatível)
+    const isOwnerAcct = isAdmin && profile?.admin_level !== 'manager' && profile?.admin_level !== 'viewer'
+    const isBlocked   = profile?.active === false && !isOwnerAcct
 
     // Cliente suspenso: encerra a sessão e manda para o login com aviso
     if (isBlocked) {

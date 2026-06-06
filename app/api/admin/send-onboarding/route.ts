@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { sendEmail, onboardingEmailHtml } from '@/lib/email'
+import { requireAdmin } from '@/lib/apiAuth'
+import { logAction } from '@/lib/audit'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+  const { ctx, error: authError } = await requireAdmin({ write: true })
+  if (authError) return authError
 
   const { to, companyName, password, connectUrl } = await req.json()
   if (!to || !password) return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 })
@@ -24,5 +22,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 })
+
+  await logAction(ctx!.actor, 'onboarding.send', { entity: 'client', details: { email: to } })
   return NextResponse.json({ success: true })
 }

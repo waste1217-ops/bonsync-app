@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/lib/types'
+import { isOwner } from '@/lib/permissions'
 
 function MeshMark({ size = 24, animate = false }: { size?: number; animate?: boolean }) {
   return (
@@ -42,6 +43,10 @@ const adminNav: NavGroup[] = [
   { section: 'Análise', items: [
     { href: '/admin/metricas',   label: 'Analytics',      icon: ChartIcon },
   ] },
+  { section: 'Administração', items: [
+    { href: '/admin/equipe',       label: 'Equipe',         icon: UsersIcon },
+    { href: '/admin/logs',         label: 'Registro',       icon: BookIcon },
+  ] },
   { section: 'Infraestrutura', items: [
     { href: '/admin/status',       label: 'Status',         icon: PulseIcon },
     { href: '/admin/instancias',   label: 'Instâncias',     icon: BoltIcon },
@@ -70,7 +75,10 @@ export function Sidebar({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
-  const groups   = profile.role === 'admin' ? adminNav : clientNav
+  const souOwner = isOwner(profile.role, (profile as any).admin_level)
+  const groups   = (profile.role === 'admin' ? adminNav : clientNav)
+    .map(g => ({ ...g, items: g.items.filter(it => it.href !== '/admin/equipe' || souOwner) }))
+    .filter(g => g.items.length > 0)
 
   async function logout() {
     await supabase.auth.signOut()

@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/apiAuth'
+import { logAction } from '@/lib/audit'
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+    const { ctx, error: authError } = await requireAdmin({ write: true })
+    if (authError) return authError
 
     const { client_id, new_password } = await req.json()
     if (!client_id || !new_password) {
@@ -27,6 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
+    await logAction(ctx!.actor, 'client.reset_pwd', { entity: 'client', entityId: client_id })
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[reset-password] erro:', err)

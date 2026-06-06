@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return false
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  return profile?.role === 'admin'
-}
+import { requireAdmin } from '@/lib/apiAuth'
+import { logAction } from '@/lib/audit'
 
 function webhookUrl() {
   if (process.env.AGENT_WEBHOOK_URL) return process.env.AGENT_WEBHOOK_URL
@@ -17,7 +10,8 @@ function webhookUrl() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+  const { ctx, error: authError } = await requireAdmin({ write: true })
+  if (authError) return authError
 
   const url = process.env.EVOLUTION_API_URL
   const key = process.env.EVOLUTION_API_KEY
@@ -72,6 +66,7 @@ export async function POST(req: NextRequest) {
       if (tok) connectUrl = `${new URL(req.url).origin}/conectar/${tok.token}`
     } catch (e) { /* token é opcional */ }
 
+    await logAction(ctx!.actor, 'instance.create', { entity: 'instance', entityId: instance })
     return NextResponse.json({ success: true, instance, qr, connectUrl })
   } catch (err: any) {
     console.error('[create-instance]', err.message)

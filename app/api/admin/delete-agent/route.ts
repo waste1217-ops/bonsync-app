@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/apiAuth'
+import { logAction } from '@/lib/audit'
 
 export async function DELETE(req: NextRequest) {
   try {
-    // 1. Verifica admin
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
+    // 1. Verifica admin com permissão de escrita
+    const { ctx, error: authError } = await requireAdmin({ write: true })
+    if (authError) return authError
 
     const { agent_id } = await req.json()
     if (!agent_id) return NextResponse.json({ error: 'agent_id obrigatório.' }, { status: 400 })
 
     const admin = createAdminClient()
+    const { data: alvo } = await admin.from('agents').select('name').eq('id', agent_id).single()
 
     // 2. Busca IDs das conversas do agente
     const { data: conversas } = await admin
@@ -43,6 +41,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
+    await logAction(ctx!.actor, 'agent.delete', { entity: 'agent', entityId: agent_id, details: { nome: alvo?.name } })
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[delete-agent] erro inesperado:', err)
