@@ -202,4 +202,54 @@ export async function processMessage({
   ])
 
   console.log(`[agent] ✓ Respondido para ${contactId} — conversa ${conversation.id}`)
+
+  // ── 8. Classifica o lead (não bloqueia o atendimento) ──────────────────
+  try {
+    if (conversation.lead_status !== 'cliente') {
+      const fullHistory = [...messages, { role: 'assistant' as const, content: reply }]
+      const lead = await classifyLead(anthropic, fullHistory)
+      if (lead) {
+        await supabase.from('conversations').update({
+          lead_status: lead.status,
+          lead_reason: lead.reason,
+          lead_updated_at: new Date().toISOString(),
+        }).eq('id', conversation.id)
+      }
+    }
+  } catch (e: any) {
+    console.error('[agent] classificação de lead falhou:', e?.message)
+  }
+}
+
+/**
+ * Classifica a temperatura do lead com base na conversa.
+ * Usa Haiku (barato). Retorna status + motivo curto.
+ */
+async function classifyLead(
+  anthropic: Anthropic,
+  messages: { role: 'user' | 'assistant'; content: string }[],
+): Promise<{ status: 'curioso' | 'potencial' | 'qualificado'; reason: string } | null> {
+  const texto = messages.slice(-12)
+    .map(m => `${m.role === 'user' ? 'Cliente' : 'Agente'}: ${String(m.content).slice(0, 400)}`)
+    .join('\n')
+
+  const resp = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 120,
+    system: [
+      'Você classifica a INTENÇÃO DE COMPRA de um contato com base na conversa de atendimento.',
+      'Categorias:',
+      '- curioso: só pesquisando, perguntas vagas, sem intenção clara de compra.',
+      '- potencial: interesse real (pergunta preço/produto/condições), mas ainda decidindo.',
+      '- qualificado: alta intenção — quer comprar/orçamento/agendar, deu dados ou pediu para falar com humano.',
+      'Responda EXATAMENTE no formato: status|motivo curto (máx 8 palavras). Sem mais nada.',
+    ].join('\n'),
+    messages: [{ role: 'user', content: texto }],
+  })
+
+  const out = resp.content.filter(b => b.type === 'text').map((b: any) => b.text).join('').trim()
+  const [rawStatus, ...rest] = out.split('|')
+  const status = (rawStatus || '').trim().toLowerCase()
+  if (status !== 'curioso' && status !== 'potencial' && status !== 'qualificado') return null
+  return { status, reason: rest.join('|').trim().slice(0, 120) || '' }
 }

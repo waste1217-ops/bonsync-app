@@ -42,6 +42,14 @@ export default async function PainelPage() {
   const vendas = deals?.filter(d => d.status === 'confirmed').length ?? 0
   const taxaConv = total ? Math.round((vendas / total) * 100) : 0
 
+  // Leads classificados pela IA
+  const { data: leadRows } = await supabase
+    .from('conversations').select('lead_status')
+    .eq('agent_id', agent?.id ?? '')
+  const qualificados = leadRows?.filter(l => l.lead_status === 'qualificado').length ?? 0
+  const potenciais   = leadRows?.filter(l => l.lead_status === 'potencial').length ?? 0
+  const curiosos     = leadRows?.filter(l => l.lead_status === 'curioso').length ?? 0
+
   const { data: recentes } = await supabase
     .from('conversations').select('*')
     .eq('agent_id', agent?.id ?? '')
@@ -126,6 +134,29 @@ export default async function PainelPage() {
           </div>
         ))}
       </div>
+
+      {/* Termômetro de leads */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+        {[
+          { label: 'Leads qualificados', value: qualificados, color: 'var(--c-green)',  help: 'Alta intenção — atenda agora' },
+          { label: 'Leads potenciais',   value: potenciais,   color: 'var(--c-yellow)', help: 'Interesse real, acompanhe' },
+          { label: 'Curiosos',           value: curiosos,     color: 'var(--c-muted)',  help: 'Só pesquisando' },
+        ].map(s => (
+          <a key={s.label} href="/painel/leads" className="card" style={{ display: 'block', cursor: 'pointer' }}>
+            <p style={{ ...S.mono, color: 'var(--c-muted)', fontSize: 9, marginBottom: 10 }}>{s.label}</p>
+            <p style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 32, color: s.color, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.value}</p>
+            <p style={{ fontFamily: 'var(--font-dm)', fontWeight: 300, fontSize: 12, color: 'var(--c-muted)', marginTop: 8 }}>{s.help}</p>
+          </a>
+        ))}
+      </div>
+
+      {qualificados > 0 && (
+        <a href="/painel/leads" style={{ display: 'block', textDecoration: 'none', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+          <p style={{ fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-white)' }}>
+            🔥 Você tem <b>{qualificados} lead{qualificados > 1 ? 's' : ''} qualificado{qualificados > 1 ? 's' : ''}</b> aguardando — clique para ver e priorizar o atendimento.
+          </p>
+        </a>
+      )}
 
       {/* Recent conversations */}
       <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 10, overflow: 'hidden' }}>

@@ -68,7 +68,8 @@ const clientNav: NavGroup[] = [
   ] },
   { section: 'Atendimento', items: [
     { href: '/painel/conversas',     label: 'Conversas',        icon: ChatIcon },
-    { href: '/painel/negocios',      label: 'Leads & Negócios', icon: DealIcon },
+    { href: '/painel/leads',         label: 'Leads',            icon: UsersIcon },
+    { href: '/painel/negocios',      label: 'Negócios',         icon: DealIcon },
     { href: '/painel/conhecimento',  label: 'Conhecimento',     icon: BookIcon },
   ] },
   { section: 'Análise', items: [
