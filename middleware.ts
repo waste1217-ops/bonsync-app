@@ -30,11 +30,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && (path.startsWith('/admin') || path.startsWith('/painel') || path === '/login')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, active')
-      .eq('id', user.id)
-      .single()
+    // Busca role + active. Se a coluna 'active' ainda não existir no banco,
+    // a query falha — então caímos para um select só de 'role' (resiliente).
+    let profile: { role?: string; active?: boolean | null } | null = null
+    const full = await supabase.from('profiles').select('role, active').eq('id', user.id).single()
+    if (full.error) {
+      const fallback = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      profile = fallback.data
+    } else {
+      profile = full.data
+    }
 
     const isAdmin   = profile?.role === 'admin'
     const isBlocked = !isAdmin && profile?.active === false
@@ -46,14 +51,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?blocked=1', request.url))
     }
 
-    // Autenticado tentando acessar a tela de login → vai para o painel certo
-    if (path === '/login') {
-      return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/painel', request.url))
-    }
+    // Só faz roteamento por papel quando o perfil foi lido com sucesso
+    // (evita loops caso o perfil não possa ser carregado)
+    if (profile) {
+      // Autenticado tentando acessar a tela de login → vai para o painel certo
+      if (path === '/login') {
+        return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/painel', request.url))
+      }
 
-    // Cliente tentando acessar área admin
-    if (path.startsWith('/admin') && !isAdmin) {
-      return NextResponse.redirect(new URL('/painel', request.url))
+      // Cliente tentando acessar área admin
+      if (path.startsWith('/admin') && !isAdmin) {
+        return NextResponse.redirect(new URL('/painel', request.url))
+      }
     }
   }
 
