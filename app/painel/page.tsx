@@ -24,6 +24,24 @@ export default async function PainelPage() {
     .from('conversations').select('*', { count: 'exact', head: true })
     .eq('agent_id', agent?.id ?? '').eq('status', 'escalated')
 
+  // Janelas de tempo em horário de Brasília
+  const nowSp = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD
+  const inicioHoje = `${nowSp}T03:00:00.000Z`              // 00:00 BRT = 03:00 UTC
+  const inicioMes  = `${nowSp.slice(0, 7)}-01T03:00:00.000Z`
+
+  const { count: convHoje } = await supabase
+    .from('conversations').select('*', { count: 'exact', head: true })
+    .eq('agent_id', agent?.id ?? '').gte('started_at', inicioHoje)
+  const { count: convMes } = await supabase
+    .from('conversations').select('*', { count: 'exact', head: true })
+    .eq('agent_id', agent?.id ?? '').gte('started_at', inicioMes)
+
+  const { data: deals } = await supabase
+    .from('deals').select('status').eq('agent_id', agent?.id ?? '')
+  const leads  = deals?.length ?? 0
+  const vendas = deals?.filter(d => d.status === 'confirmed').length ?? 0
+  const taxaConv = total ? Math.round((vendas / total) * 100) : 0
+
   const { data: recentes } = await supabase
     .from('conversations').select('*')
     .eq('agent_id', agent?.id ?? '')
@@ -90,12 +108,15 @@ export default async function PainelPage() {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
         {[
+          { label: 'Conversas hoje', value: convHoje ?? 0 },
+          { label: 'Conversas no mês', value: convMes ?? 0 },
           { label: 'Total de conversas', value: total ?? 0 },
-          { label: 'Resolvidas', value: resolved ?? 0 },
+          { label: 'Leads captados', value: leads },
+          { label: 'Vendas geradas', value: vendas },
+          { label: 'Taxa de conversão', value: `${taxaConv}%` },
           { label: 'Taxa de resolução', value: total ? `${Math.round(((resolved ?? 0) / total) * 100)}%` : '—' },
           { label: 'Escaladas', value: escalated ?? 0 },
           { label: 'Em aberto', value: (total ?? 0) - (resolved ?? 0) - (escalated ?? 0) },
-          { label: 'Canal principal', value: 'WhatsApp' },
         ].map(s => (
           <div key={s.label} className="card">
             <p style={{ ...S.mono, color: 'var(--c-muted)', marginBottom: 12 }}>{s.label}</p>

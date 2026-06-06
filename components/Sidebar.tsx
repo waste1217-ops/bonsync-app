@@ -63,16 +63,19 @@ const adminNav: NavGroup[] = [
 const clientNav: NavGroup[] = [
   { section: null, items: [
     { href: '/painel',               label: 'Visão geral',      icon: HomeIcon },
+    { href: '/painel/agente',        label: 'Meu Agente',       icon: BoltIcon },
     { href: '/painel/assistente',    label: 'Copiloto',         icon: SparkIcon },
   ] },
   { section: 'Atendimento', items: [
     { href: '/painel/conversas',     label: 'Conversas',        icon: ChatIcon },
-    { href: '/painel/negocios',      label: 'Negócios',         icon: DealIcon },
-    { href: '/painel/status',        label: 'Status do agente', icon: BoltIcon },
+    { href: '/painel/negocios',      label: 'Leads & Negócios', icon: DealIcon },
     { href: '/painel/conhecimento',  label: 'Conhecimento',     icon: BookIcon },
   ] },
+  { section: 'Análise', items: [
+    { href: '/painel/metricas',      label: 'Relatórios',       icon: ChartIcon },
+  ] },
   { section: 'Conta', items: [
-    { href: '/painel/metricas',      label: 'Métricas',         icon: ChartIcon },
+    { href: '/painel/status',        label: 'Status do agente', icon: PulseIcon },
     { href: '/painel/configuracoes', label: 'Configurações',    icon: SettingsIcon },
   ] },
 ]
