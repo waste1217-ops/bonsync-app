@@ -54,6 +54,7 @@ const adminNav: NavGroup[] = [
   { section: 'Infraestrutura', items: [
     { href: '/admin/status',       label: 'Status',         icon: PulseIcon },
     { href: '/admin/instancias',   label: 'Instâncias',     icon: BoltIcon },
+    { href: '/admin/backup',       label: 'Backup',         icon: BookIcon },
     { href: '/admin/configuracoes',label: 'Configurações',  icon: SettingsIcon },
   ] },
 ]
