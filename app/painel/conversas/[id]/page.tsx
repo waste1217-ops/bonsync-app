@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
+import { ConversationSummary } from '@/components/ConversationSummary'
 
 const S = {
   mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
@@ -66,6 +67,9 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
           </span>
         </div>
       </div>
+
+      {/* Resumo automático */}
+      {!!messages?.length && <ConversationSummary conversationId={id} />}
 
       {/* Chat messages */}
       <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 14, overflow: 'hidden' }}>
