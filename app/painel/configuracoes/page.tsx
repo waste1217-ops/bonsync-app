@@ -9,19 +9,27 @@ export default function PainelConfigPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
+  const [empresa, setEmpresa] = useState('')
   const [cfg, setCfg] = useState({
     prompt: '', tom: 'profissional', saudacao: '',
     escalation_mode: 'on_demand', escalate_after_messages: 0,
     digest_frequency: 'off', digest_channel: 'email',
+    away_message: '',
+    bh_enabled: false, bh_start: '08:00', bh_end: '18:00', bh_weekdays: true,
   })
   const supabase = createClient()
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data } = await supabase.from('agents').select('*').eq('client_id', user!.id).single()
+      const [{ data }, { data: prof }] = await Promise.all([
+        supabase.from('agents').select('*').eq('client_id', user!.id).single(),
+        supabase.from('profiles').select('company_name').eq('id', user!.id).single(),
+      ])
+      if (prof) setEmpresa(prof.company_name ?? '')
       if (data) {
         setAgent(data)
+        const bh = data.config?.business_hours ?? {}
         setCfg({
           prompt:                  data.config?.prompt                  ?? '',
           tom:                     data.config?.tom                     ?? 'profissional',
@@ -30,6 +38,11 @@ export default function PainelConfigPage() {
           escalate_after_messages: data.config?.escalate_after_messages ?? 0,
           digest_frequency:        data.config?.digest_frequency        ?? 'off',
           digest_channel:          data.config?.digest_channel          ?? 'email',
+          away_message:            data.config?.away_message            ?? '',
+          bh_enabled:              bh.enabled  ?? false,
+          bh_start:                bh.start    ?? '08:00',
+          bh_end:                  bh.end      ?? '18:00',
+          bh_weekdays:             bh.weekdays ?? true,
         })
       }
       setLoading(false)
@@ -40,10 +53,17 @@ export default function PainelConfigPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('agents').update({
-      config: { ...agent.config, ...cfg },
-      updated_at: new Date().toISOString(),
-    }).eq('id', agent.id)
+    const { bh_enabled, bh_start, bh_end, bh_weekdays, ...rest } = cfg
+    const novoConfig = {
+      ...agent.config,
+      ...rest,
+      business_hours: { enabled: bh_enabled, start: bh_start, end: bh_end, weekdays: bh_weekdays },
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    await Promise.all([
+      supabase.from('agents').update({ config: novoConfig, updated_at: new Date().toISOString() }).eq('id', agent.id),
+      supabase.from('profiles').update({ company_name: empresa.trim() }).eq('id', user!.id),
+    ])
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -73,6 +93,19 @@ export default function PainelConfigPage() {
       </div>
 
       <form onSubmit={handleSave}>
+        {/* Dados da empresa */}
+        <div style={sectionStyle}>
+          <h2 style={sectionTitle}>Dados da empresa</h2>
+          <div>
+            <label style={T.label}>Nome da empresa</label>
+            <input className="field" type="text" value={empresa}
+              onChange={e => setEmpresa(e.target.value)} placeholder="Ex: Loja do João" />
+            <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+              Aparece no seu painel e nos relatórios. Para trocar e-mail/senha, fale com a Bonsync.
+            </p>
+          </div>
+        </div>
+
         {/* Identidade */}
         <div style={sectionStyle}>
           <h2 style={sectionTitle}>Identidade</h2>
@@ -133,6 +166,44 @@ export default function PainelConfigPage() {
                   Limite de segurança. Use <b style={{ color: C.muted }}>0</b> para desligar. Se a conversa passar desse número de mensagens, o agente escala automaticamente.
                 </p>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Disponibilidade */}
+        <div style={sectionStyle}>
+          <h2 style={sectionTitle}>Horário de funcionamento</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={cfg.bh_enabled} onChange={e => setCfg({ ...cfg, bh_enabled: e.target.checked })} />
+              <span style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>Responder só dentro do horário comercial</span>
+            </label>
+            {cfg.bh_enabled && (
+              <>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <label style={T.label}>Abre às</label>
+                    <input className="field" type="time" value={cfg.bh_start} onChange={e => setCfg({ ...cfg, bh_start: e.target.value })} style={{ width: 140 }} />
+                  </div>
+                  <div>
+                    <label style={T.label}>Fecha às</label>
+                    <input className="field" type="time" value={cfg.bh_end} onChange={e => setCfg({ ...cfg, bh_end: e.target.value })} style={{ width: 140 }} />
+                  </div>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={cfg.bh_weekdays} onChange={e => setCfg({ ...cfg, bh_weekdays: e.target.checked })} />
+                  <span style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>Somente em dias úteis (seg a sex)</span>
+                </label>
+                <div>
+                  <label style={T.label}>Mensagem de ausência</label>
+                  <textarea className="field" rows={2} value={cfg.away_message}
+                    onChange={e => setCfg({ ...cfg, away_message: e.target.value })}
+                    placeholder="Olá! No momento estamos fora do horário de atendimento (seg a sex, 8h–18h). Retornaremos assim que possível. 🙏" />
+                  <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                    Enviada automaticamente quando alguém escreve fora do horário. Horário de Brasília.
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>

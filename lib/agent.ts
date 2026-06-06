@@ -87,6 +87,26 @@ export async function processMessage({
     content:         text,
   })
 
+  // ── 3b. Horário de funcionamento ───────────────────────────────────────
+  const bh = (cfg.business_hours ?? {}) as { enabled?: boolean; start?: string; end?: string; weekdays?: boolean }
+  if (bh.enabled && cfg.away_message) {
+    const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+    const dia = spNow.getDay() // 0 dom .. 6 sáb
+    const minutosAgora = spNow.getHours() * 60 + spNow.getMinutes()
+    const [sh, sm] = (bh.start ?? '08:00').split(':').map(Number)
+    const [eh, em] = (bh.end ?? '18:00').split(':').map(Number)
+    const ini = sh * 60 + sm, fim = eh * 60 + em
+    const foraDeHorario = minutosAgora < ini || minutosAgora >= fim
+    const fds = bh.weekdays && (dia === 0 || dia === 6)
+    if (foraDeHorario || fds) {
+      await supabase.from('messages').insert({ conversation_id: conversation.id, role: 'assistant', content: cfg.away_message })
+      await supabase.from('conversations').update({ message_count: (conversation.message_count ?? 0) + 1, updated_at: new Date().toISOString() }).eq('id', conversation.id)
+      await sendText(instance, contactJid, cfg.away_message)
+      console.log(`[agent] Fora do horário — mensagem de ausência enviada para ${contactId}`)
+      return
+    }
+  }
+
   // ── 4. Carrega histórico recente para contexto ─────────────────────────
   const { data: history } = await supabase
     .from('messages')
