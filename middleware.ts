@@ -29,27 +29,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Autenticado tentando acessar login
-  if (user && path === '/login') {
+  if (user && (path.startsWith('/admin') || path.startsWith('/painel') || path === '/login')) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, active')
       .eq('id', user.id)
       .single()
 
-    const dest = profile?.role === 'admin' ? '/admin' : '/painel'
-    return NextResponse.redirect(new URL(dest, request.url))
-  }
+    const isAdmin   = profile?.role === 'admin'
+    const isBlocked = !isAdmin && profile?.active === false
 
-  // Cliente tentando acessar área admin
-  if (user && path.startsWith('/admin')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Cliente suspenso: encerra a sessão e manda para o login com aviso
+    if (isBlocked) {
+      await supabase.auth.signOut()
+      if (path === '/login') return supabaseResponse
+      return NextResponse.redirect(new URL('/login?blocked=1', request.url))
+    }
 
-    if (profile?.role !== 'admin') {
+    // Autenticado tentando acessar a tela de login → vai para o painel certo
+    if (path === '/login') {
+      return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/painel', request.url))
+    }
+
+    // Cliente tentando acessar área admin
+    if (path.startsWith('/admin') && !isAdmin) {
       return NextResponse.redirect(new URL('/painel', request.url))
     }
   }

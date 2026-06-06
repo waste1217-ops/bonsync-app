@@ -5,7 +5,7 @@ export default async function AdminClientesPage() {
   const supabase = await createClient()
   const { data: clientes } = await supabase
     .from('profiles')
-    .select('id, email, company_name, responsavel, created_at, agents(id, name, status)')
+    .select('id, email, company_name, responsavel, active, created_at, agents(id, name, status)')
     .eq('role', 'client')
     .order('created_at', { ascending: false })
 
@@ -45,7 +45,10 @@ export default async function AdminClientesPage() {
           <a key={c.id} href={`/admin/clientes/${c.id}`}
             className="trow"
             style={{ display: 'grid', gridTemplateColumns: '2fr 1.6fr 1.2fr 1.4fr 1fr', gap: 16, cursor: 'pointer' }}>
-            <span style={T.cell}>{c.company_name || '—'}</span>
+            <span style={{ ...T.cell, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              {c.company_name || '—'}
+              {c.active === false && <span style={badgeStyle('red')}>suspenso</span>}
+            </span>
             <span style={T.cellMuted}>{c.email}</span>
             <span style={T.cellMuted}>{c.responsavel || '—'}</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>

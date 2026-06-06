@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -26,9 +26,14 @@ export default function LoginPage() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
+  const [blocked, setBlocked]   = useState(false)
   const [loading, setLoading]   = useState(false)
   const router   = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('blocked') === '1') setBlocked(true)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -151,6 +156,12 @@ export default function LoginPage() {
           <p style={{ fontFamily: 'var(--font-dm), DM Sans, sans-serif', fontWeight: 300, fontSize: 15, color: '#7286a0', marginBottom: 36 }}>
             Acesse o painel da sua conta Bonsync.
           </p>
+
+          {blocked && (
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, padding: '12px 14px', marginBottom: 18, fontFamily: 'var(--font-dm), sans-serif', fontSize: 13, color: '#fbbf24', lineHeight: 1.5 }}>
+              Seu acesso está temporariamente suspenso. Entre em contato com a Bonsync para regularizar.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
