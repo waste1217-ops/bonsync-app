@@ -38,6 +38,7 @@ const adminNav: NavGroup[] = [
     { href: '/admin/clientes',   label: 'Clientes',       icon: UsersIcon },
     { href: '/admin/agentes',    label: 'Agentes',        icon: BoltIcon },
     { href: '/admin/templates',  label: 'Templates',      icon: BookIcon },
+    { href: '/admin/playground', label: 'Playground',     icon: SparkIcon },
     { href: '/admin/conversas',  label: 'Conversas',      icon: ChatIcon },
     { href: '/admin/negocios',   label: 'Negócios',       icon: DealIcon },
   ] },
