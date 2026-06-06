@@ -43,6 +43,7 @@ const adminNav: NavGroup[] = [
   ] },
   { section: 'Análise', items: [
     { href: '/admin/metricas',     label: 'Analytics',       icon: ChartIcon },
+    { href: '/admin/financeiro',   label: 'Financeiro',      icon: DealIcon },
     { href: '/admin/inteligencia', label: 'IA para gestão',  icon: SparkIcon },
   ] },
   { section: 'Administração', items: [

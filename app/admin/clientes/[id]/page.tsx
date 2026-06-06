@@ -4,6 +4,7 @@ import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, ag
 import { DeleteButton } from '@/components/DeleteButton'
 import { ResetPasswordButton } from '@/components/ResetPasswordButton'
 import { ClientActiveToggle } from '@/components/ClientActiveToggle'
+import { PaymentsManager } from '@/components/PaymentsManager'
 
 export default async function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -106,6 +107,9 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       )}
+
+      {/* Histórico de pagamentos */}
+      <PaymentsManager clientId={id} />
 
       {/* Anotações internas (só admin vê esta tela) */}
       {cliente.internal_notes && (
