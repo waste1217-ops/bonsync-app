@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { C, T, FONT, badgeStyle, convStatusVariant, convStatusLabel } from '@/lib/styles'
+import { MessageRating } from '@/components/MessageRating'
+import { FavoriteToggle } from '@/components/FavoriteToggle'
 
 function formatContact(id: string | null): string {
   if (!id) return 'Anônimo'
@@ -61,7 +63,10 @@ export default async function AdminConversaDetailPage({ params }: { params: Prom
               ))}
             </div>
           </div>
-          <span style={badgeStyle(convStatusVariant(conversa.status))}>{convStatusLabel[conversa.status]}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+            <span style={badgeStyle(convStatusVariant(conversa.status))}>{convStatusLabel[conversa.status]}</span>
+            <FavoriteToggle conversationId={id} initial={conversa.is_favorite ?? false} />
+          </div>
         </div>
       </div>
 
@@ -103,8 +108,9 @@ export default async function AdminConversaDetailPage({ params }: { params: Prom
                   <p style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white, lineHeight: 1.65, fontWeight: 300, marginBottom: 6, whiteSpace: 'pre-wrap' }}>
                     {msg.content}
                   </p>
-                  <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint }}>
+                  <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, display: 'inline-flex', alignItems: 'center' }}>
                     {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
+                    {!isUser && <MessageRating messageId={msg.id} initial={msg.rating ?? null} />}
                   </span>
                 </div>
               </div>

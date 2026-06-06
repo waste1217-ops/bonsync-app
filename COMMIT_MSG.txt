@@ -1,0 +1,10 @@
+Conversas: busca, filtros, favoritos, export CSV e avaliacao
+
+- Novo navegador de conversas (admin): busca por cliente/agente/contato,
+  filtro por status e por favoritos, contagem dinamica
+- Favoritar/marcar importante (estrela) na lista e no detalhe da conversa
+- Exportar conversas filtradas em CSV (UTF-8 com BOM, separador ;)
+- Avaliacao das respostas da IA (positivo/negativo) no detalhe
+- KPI de favoritas; remove componente ClientConversations (substituido)
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { ClientConversations } from '@/components/ClientConversations'
+import { AdminConversasBrowser, type Conv } from '@/components/AdminConversasBrowser'
 
 const S = {
   mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
@@ -9,42 +9,45 @@ export default async function AdminConversasPage() {
   const supabase = await createClient()
   const { data: conversas } = await supabase
     .from('conversations')
-    .select('*, agents(name, profiles(company_name))')
+    .select('id, contact_identifier, channel, status, started_at, is_favorite, agents(name, profiles(company_name))')
     .order('started_at', { ascending: false })
-    .limit(300)
+    .limit(500)
 
-  const all       = conversas ?? []
+  const all = conversas ?? []
   const total     = all.length
   const resolved  = all.filter(c => c.status === 'resolved').length
   const escalated = all.filter(c => c.status === 'escalated').length
+  const favoritos = all.filter((c: any) => c.is_favorite).length
 
-  // Agrupa por cliente (empresa)
-  const grupos: Record<string, { empresa: string; convs: any[] }> = {}
-  for (const c of all) {
-    const empresa = (c.agents as any)?.profiles?.company_name ?? 'Sem cliente'
-    if (!grupos[empresa]) grupos[empresa] = { empresa, convs: [] }
-    grupos[empresa].convs.push(c)
-  }
-  const gruposOrdenados = Object.values(grupos).sort((a, b) => b.convs.length - a.convs.length)
+  const itens: Conv[] = all.map((c: any) => ({
+    id: c.id,
+    contact_identifier: c.contact_identifier,
+    channel: c.channel,
+    status: c.status,
+    started_at: c.started_at,
+    is_favorite: c.is_favorite ?? false,
+    empresa: c.agents?.profiles?.company_name ?? 'Sem cliente',
+    agente: c.agents?.name ?? '—',
+  }))
 
   return (
     <div className="animate-slide-up" style={{ maxWidth: 1100 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 24, color: 'var(--c-white)', letterSpacing: '-0.025em', marginBottom: 4 }}>
-          Conversas por cliente
+          Conversas
         </h1>
         <p style={{ fontFamily: 'var(--font-dm)', fontWeight: 300, fontSize: 14, color: 'var(--c-muted)' }}>
-          Clique em um cliente para ver os atendimentos dele.
+          Busque, filtre, favorite e exporte os atendimentos de todos os clientes.
         </p>
       </div>
 
       {/* KPIs rápidos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 28 }}>
         {[
-          { label: 'Clientes', value: gruposOrdenados.length },
           { label: 'Total de conversas', value: total },
           { label: 'Resolvidas', value: resolved },
           { label: 'Escaladas', value: escalated },
+          { label: 'Favoritas', value: favoritos },
         ].map(s => (
           <div key={s.label} className="card">
             <p style={{ ...S.mono, color: 'var(--c-muted)', fontSize: 9, marginBottom: 8 }}>{s.label}</p>
@@ -53,17 +56,7 @@ export default async function AdminConversasPage() {
         ))}
       </div>
 
-      {!all.length ? (
-        <div style={{ background: 'var(--c-deep)', border: '1px solid var(--c-border)', borderRadius: 10, padding: '60px 24px', textAlign: 'center', fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-muted)', fontWeight: 300 }}>
-          Nenhuma conversa registrada ainda.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {gruposOrdenados.map(g => (
-            <ClientConversations key={g.empresa} empresa={g.empresa} convs={g.convs} />
-          ))}
-        </div>
-      )}
+      <AdminConversasBrowser conversas={itens} />
     </div>
   )
 }
