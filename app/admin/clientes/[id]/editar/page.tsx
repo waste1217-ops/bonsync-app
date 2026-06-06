@@ -19,7 +19,7 @@ export default function EditarClientePage() {
   const [companyName, setCompanyName] = useState('')
   const [responsavel, setResponsavel] = useState('')
   const [notas, setNotas]     = useState('')
-  const [sub, setSub] = useState({ plan_name: 'Padrão', monthly_price: 0, status: 'trial' })
+  const [sub, setSub] = useState({ plan_name: 'Padrão', monthly_price: 0, status: 'trial', due_date: '' })
 
   useEffect(() => {
     async function load() {
@@ -38,6 +38,7 @@ export default function EditarClientePage() {
           plan_name: subscription.plan_name ?? 'Padrão',
           monthly_price: Number(subscription.monthly_price ?? 0),
           status: subscription.status ?? 'trial',
+          due_date: subscription.due_date ?? '',
         })
       }
       setLoading(false)
@@ -58,6 +59,7 @@ export default function EditarClientePage() {
       plan_name: sub.plan_name,
       monthly_price: sub.monthly_price,
       status: sub.status,
+      due_date: sub.due_date || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'client_id' })
     if (e2) { setError(e2.message); setSaving(false); return }
@@ -142,6 +144,15 @@ export default function EditarClientePage() {
               style={{ width: 160 }} />
             <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
               Entra no MRR só quando o status for "Ativo".
+            </p>
+          </div>
+          <div>
+            <label style={T.label}>Próximo vencimento</label>
+            <input className="field" type="date" value={sub.due_date}
+              onChange={e => setSub({ ...sub, due_date: e.target.value })}
+              style={{ width: 200 }} />
+            <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+              Data da próxima cobrança. Gera alerta no painel quando estiver próxima ou vencida.
             </p>
           </div>
         </div>

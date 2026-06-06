@@ -14,7 +14,7 @@ const MODELOS = [
 export default function NovoAgentePage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [form, setForm] = useState({
-    client_id: '', name: '', description: '',
+    client_id: '', name: '', description: '', tags: '',
     model: 'claude-sonnet-4-5', anthropic_key: '',
     prompt: '', tom: 'profissional',
     saudacao: 'Olá! Como posso te ajudar hoje?',
@@ -24,6 +24,7 @@ export default function NovoAgentePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState(false)
+  const [templateName, setTemplateName] = useState('')
   const router   = useRouter()
   const supabase = createClient()
 
@@ -32,17 +33,42 @@ export default function NovoAgentePage() {
       .then(({ data }) => { if (data) setClientes(data) })
   }, [])
 
+  // Pré-preenche a partir de um template (?template=ID)
+  useEffect(() => {
+    const tid = new URLSearchParams(window.location.search).get('template')
+    if (!tid) return
+    supabase.from('agent_templates').select('*').eq('id', tid).single()
+      .then(({ data }) => {
+        if (!data) return
+        const cfg = data.config || {}
+        setTemplateName(data.name)
+        setForm(f => ({
+          ...f,
+          name: data.name,
+          description: data.description ?? f.description,
+          tags: data.category ?? f.tags,
+          model: cfg.model ?? f.model,
+          prompt: cfg.prompt ?? f.prompt,
+          tom: cfg.tom ?? f.tom,
+          saudacao: cfg.saudacao ?? f.saudacao,
+        }))
+      })
+  }, [])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.client_id)     return setError('Selecione o cliente.')
     if (!form.anthropic_key) return setError('Informe a Anthropic API key.')
     setLoading(true); setError('')
 
+    const tagsArr = form.tags.split(',').map(t => t.trim()).filter(Boolean)
+
     const { error: err } = await supabase.from('agents').insert({
       client_id:   form.client_id,
       name:        form.name,
       description: form.description,
       status:      'paused',
+      tags:        tagsArr,
       config: {
         model:         form.model,
         anthropic_key: form.anthropic_key,
@@ -76,6 +102,12 @@ export default function NovoAgentePage() {
         </a>
         <h1 style={T.h1}>Novo agente</h1>
         <p style={{ ...T.sub, marginTop: 4 }}>Configure um agente Anthropic para um cliente.</p>
+        {templateName && (
+          <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(80,130,210,0.1)', border: '1px solid rgba(80,130,210,0.2)', borderRadius: 100, padding: '6px 14px' }}>
+            <span style={{ fontSize: 12 }}>📋</span>
+            <span style={{ fontFamily: FONT.jb, fontSize: 11, color: C.blueB }}>Baseado no template: {templateName}</span>
+          </div>
+        )}
       </div>
 
       {success && (
@@ -105,6 +137,14 @@ export default function NovoAgentePage() {
               <label style={T.label}>Descrição (opcional)</label>
               <input className="field" type="text" placeholder="Atende dúvidas de clientes pelo WhatsApp"
                 value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div>
+              <label style={T.label}>Categorias / tags (opcional)</label>
+              <input className="field" type="text" placeholder="Ex: vendas, suporte, agendamento"
+                value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} />
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Separe por vírgula. Ajuda a organizar e filtrar os agentes.
+              </p>
             </div>
           </div>
         </div>

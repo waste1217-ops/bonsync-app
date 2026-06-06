@@ -23,7 +23,7 @@ export default function EditarAgentePage() {
   const [saved, setSaved]     = useState(false)
   const [hasKey, setHasKey]   = useState(false)
   const [form, setForm] = useState({
-    name: '', description: '', status: 'paused',
+    name: '', description: '', status: 'paused', tags: '',
     model: 'claude-sonnet-4-5', anthropic_key: '',
     prompt: '', tom: 'profissional', saudacao: '',
     escalation_mode: 'on_demand', escalate_after_messages: 0,
@@ -40,6 +40,7 @@ export default function EditarAgentePage() {
           name: data.name ?? '',
           description: data.description ?? '',
           status: data.status ?? 'paused',
+          tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
           model: cfg.model ?? 'claude-sonnet-4-5',
           anthropic_key: '', // não exibimos a chave; só sobrescreve se digitar
           prompt: cfg.prompt ?? '',
@@ -76,10 +77,13 @@ export default function EditarAgentePage() {
     // Só sobrescreve a chave se o admin digitou uma nova
     if (form.anthropic_key.trim()) newConfig.anthropic_key = form.anthropic_key.trim()
 
+    const tagsArr = form.tags.split(',').map(t => t.trim()).filter(Boolean)
+
     const { error: err } = await supabase.from('agents').update({
       name: form.name,
       description: form.description,
       status: form.status,
+      tags: tagsArr,
       config: newConfig,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
@@ -135,6 +139,15 @@ export default function EditarAgentePage() {
                 <option value="paused">Pausado</option>
                 <option value="error">Erro</option>
               </select>
+            </div>
+            <div>
+              <label style={T.label}>Categorias / tags</label>
+              <input className="field" type="text" value={form.tags}
+                onChange={e => setForm({ ...form, tags: e.target.value })}
+                placeholder="Ex: vendas, suporte, agendamento" />
+              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                Separe por vírgula. Ajuda a organizar e filtrar os agentes.
+              </p>
             </div>
           </div>
         </div>

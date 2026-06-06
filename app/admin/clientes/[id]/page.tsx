@@ -17,6 +17,25 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
 
   if (!cliente) notFound()
 
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('plan_name, monthly_price, status, due_date')
+    .eq('client_id', id)
+    .single()
+
+  // Status de cobrança
+  let billing: { label: string; variant: 'green' | 'yellow' | 'red' | 'muted'; sub: string } | null = null
+  if (sub?.due_date) {
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+    const venc = new Date(sub.due_date + 'T00:00:00')
+    const dias = Math.round((venc.getTime() - hoje.getTime()) / 86400000)
+    const fmt = venc.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    if (dias < 0)       billing = { label: 'Vencido', variant: 'red',    sub: `há ${Math.abs(dias)} dia(s) · ${fmt}` }
+    else if (dias === 0) billing = { label: 'Vence hoje', variant: 'red', sub: fmt }
+    else if (dias <= 7) billing = { label: 'A vencer', variant: 'yellow', sub: `em ${dias} dia(s) · ${fmt}` }
+    else                billing = { label: 'Em dia', variant: 'green',    sub: `próximo: ${fmt}` }
+  }
+
   const { data: conversas } = await supabase
     .from('conversations')
     .select('*, agents!inner(client_id)')
@@ -59,6 +78,29 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      {/* Assinatura / cobrança */}
+      {sub && (
+        <div style={{ ...CARD, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <p style={{ ...T.mono, color: C.muted, marginBottom: 6 }}>Assinatura</p>
+            <p style={{ fontFamily: FONT.dm, fontSize: 15, color: C.white }}>
+              {sub.plan_name || 'Padrão'}
+              {sub.monthly_price ? ` · R$ ${Number(sub.monthly_price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês` : ''}
+              {' · '}
+              <span style={{ color: sub.status === 'active' ? C.green : sub.status === 'trial' ? C.yellow : C.red }}>
+                {sub.status === 'active' ? 'Ativo' : sub.status === 'trial' ? 'Em teste' : 'Cancelado'}
+              </span>
+            </p>
+          </div>
+          {billing && (
+            <div style={{ textAlign: 'right' }}>
+              <span style={badgeStyle(billing.variant)}>{billing.label}</span>
+              <p style={{ ...T.mono, color: C.faint, fontSize: 10, marginTop: 6 }}>{billing.sub}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Anotações internas (só admin vê esta tela) */}
       {cliente.internal_notes && (

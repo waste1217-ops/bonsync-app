@@ -19,7 +19,7 @@ export default async function AdminOverviewPage() {
     supabase.from('agents').select('id, client_id, status, config'),
     supabase.from('conversations').select('*', { count: 'exact', head: true }),
     supabase.rpc('agent_token_totals'),
-    supabase.from('subscriptions').select('monthly_price, status'),
+    supabase.from('subscriptions').select('client_id, monthly_price, status, due_date'),
     supabase.rpc('agent_token_totals_since', { since: inicioMes }),
   ])
 
@@ -55,6 +55,20 @@ export default async function AdminOverviewPage() {
     custoMes += estimateCostBRL({ inputTokens: Number(t.input_tokens || 0), outputTokens: Number(t.output_tokens || 0) }, agentModel[t.agent_id])
   })
   const lucro = mrr - custoMes
+
+  // ── Cobranças a vencer / vencidas ──
+  const nomeCliente: Record<string, string> = {}
+  cls.forEach(c => { nomeCliente[c.id] = c.company_name || c.email })
+  const hojeBilling = new Date(); hojeBilling.setHours(0, 0, 0, 0)
+  const cobrancas = subsList
+    .filter((s: any) => s.due_date && s.status !== 'cancelled')
+    .map((s: any) => {
+      const venc = new Date(s.due_date + 'T00:00:00')
+      const dias = Math.round((venc.getTime() - hojeBilling.getTime()) / 86400000)
+      return { client_id: s.client_id, nome: nomeCliente[s.client_id] || '—', due_date: s.due_date, dias, valor: Number(s.monthly_price || 0) }
+    })
+    .filter((c: any) => c.dias <= 7)
+    .sort((a: any, b: any) => a.dias - b.dias)
 
   // ── Crescimento: novos clientes nos últimos 6 meses ──
   const meses: { label: string; count: number }[] = []
@@ -111,6 +125,37 @@ export default async function AdminOverviewPage() {
           </div>
         ))}
       </div>
+
+      {/* Cobranças a vencer / vencidas */}
+      {cobrancas.length > 0 && (
+        <div style={{ ...CARD, marginBottom: 16, borderColor: 'rgba(245,158,11,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <span style={{ fontSize: 14 }}>🔔</span>
+            <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 15, color: C.white }}>
+              Cobranças ({cobrancas.length})
+            </h2>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {cobrancas.map((c: any) => {
+              const cor = c.dias < 0 ? C.red : c.dias <= 2 ? C.red : C.yellow
+              const txt = c.dias < 0 ? `Vencido há ${Math.abs(c.dias)} dia(s)` : c.dias === 0 ? 'Vence hoje' : `Vence em ${c.dias} dia(s)`
+              return (
+                <a key={c.client_id} href={`/admin/clientes/${c.client_id}`} className="trow"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>{c.nome}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    {c.valor > 0 && <span style={{ ...T.mono, color: C.muted, fontSize: 11 }}>{fmtBRL(c.valor)}</span>}
+                    <span style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 12, color: cor }}>{txt}</span>
+                    <span style={{ ...T.mono, color: C.faint, fontSize: 10 }}>
+                      {new Date(c.due_date + 'T00:00:00').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                    </span>
+                  </span>
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Consumo de IA + crescimento */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16, marginBottom: 16 }}>

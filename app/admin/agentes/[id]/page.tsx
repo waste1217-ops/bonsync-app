@@ -5,6 +5,7 @@ import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, ag
 import { AgentToggle } from './AgentToggle'
 import { DeleteButton } from '@/components/DeleteButton'
 import { DuplicateAgentButton } from '@/components/DuplicateAgentButton'
+import { SaveAsTemplateButton } from '@/components/SaveAsTemplateButton'
 import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
 export default async function AgenteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -61,6 +62,13 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
                 <p style={{ ...T.mono, color: C.muted, marginBottom: 8 }}>Agente</p>
                 <h1 style={{ ...T.h1, fontSize: 28, marginBottom: 8 }}>{agent.name}</h1>
                 {agent.description && <p style={T.sub}>{agent.description}</p>}
+                {Array.isArray(agent.tags) && agent.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                    {agent.tags.map((t: string) => (
+                      <span key={t} style={badgeStyle('blue')}>{t}</span>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 20, marginTop: 16, flexWrap: 'wrap' }}>
                   <div>
                     <p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 4 }}>Cliente</p>
@@ -157,6 +165,7 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
             Editar configuração
           </a>
           <DuplicateAgentButton agentId={id} />
+          <SaveAsTemplateButton agentId={id} agentName={agent.name} />
           <DeleteButton
             label="Excluir agente"
             confirmText={`Tem certeza que deseja excluir o agente "${agent.name}"? Todas as conversas e métricas serão perdidas.`}

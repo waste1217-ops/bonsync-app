@@ -54,6 +54,15 @@ export default async function AdminAgentesPage() {
               {a.description && (
                 <p style={{ fontFamily: 'var(--font-dm)', fontSize: 12, color: 'var(--c-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</p>
               )}
+              {Array.isArray(a.tags) && a.tags.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                  {a.tags.map((t: string) => (
+                    <span key={t} style={{ fontFamily: 'var(--font-jb)', fontSize: 9, color: 'var(--c-blue-b)', background: 'rgba(80,130,210,0.1)', border: '1px solid rgba(80,130,210,0.2)', borderRadius: 100, padding: '2px 8px' }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <p style={{ fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-white)' }}>
