@@ -60,9 +60,22 @@ export default function EditarAgentePage() {
     e.preventDefault()
     setSaving(true); setError('')
 
-    // Busca config atual para preservar campos não editados (ex: channels)
-    const { data: current } = await supabase.from('agents').select('config').eq('id', id).single()
+    // Busca estado atual para preservar campos não editados (ex: channels) e versionar
+    const { data: current } = await supabase.from('agents')
+      .select('name, description, tags, config').eq('id', id).single()
     const baseConfig = current?.config || {}
+
+    // Snapshot da versão atual antes de sobrescrever (histórico/restauração)
+    if (current) {
+      await supabase.from('agent_versions').insert({
+        agent_id: id,
+        name: current.name,
+        description: current.description,
+        tags: current.tags ?? [],
+        config: current.config ?? {},
+        note: 'edição',
+      })
+    }
 
     const newConfig: Record<string, unknown> = {
       ...baseConfig,

@@ -164,6 +164,9 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
           <a href={`/admin/agentes/${id}/editar`} className="btn-ghost" style={{ fontSize: 12, padding: '9px 18px' }}>
             Editar configuração
           </a>
+          <a href={`/admin/agentes/${id}/versoes`} className="btn-ghost" style={{ fontSize: 12, padding: '9px 18px' }}>
+            Histórico de versões
+          </a>
           <DuplicateAgentButton agentId={id} />
           <SaveAsTemplateButton agentId={id} agentName={agent.name} />
           <DeleteButton
