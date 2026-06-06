@@ -28,6 +28,10 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
   const [editText, setEditText] = useState('')
   const [busy, setBusy]         = useState('')
   const [drafts, setDrafts]     = useState<Record<string, string>>({})
+  const [importUrl, setImportUrl] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState('')
+  const [importErr, setImportErr] = useState('')
 
   async function load() {
     const [{ data: kb }, { data: sug }] = await Promise.all([
@@ -47,6 +51,38 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
     setSaving(true)
     await supabase.from('knowledge_base').insert({ agent_id: agentId, content, active: true })
     setNovo(''); setSaving(false); load()
+  }
+
+  async function ingest(payload: any, descricao: string) {
+    setImporting(true); setImportErr(''); setImportMsg('')
+    try {
+      const res = await fetch('/api/knowledge/ingest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId, ...payload }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha na importação.')
+      setImportMsg(`✓ ${descricao}: ${data.inserted} item(ns) adicionado(s).`)
+      load()
+    } catch (e: any) { setImportErr(e.message) }
+    setImporting(false)
+  }
+
+  async function importarArquivo(file: File) {
+    if (file.size > 8 * 1024 * 1024) { setImportErr('Arquivo muito grande (máx. 8 MB).'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const b64 = String(reader.result).split(',')[1] || ''
+      ingest({ kind: 'file', fileName: file.name, fileData: b64 }, file.name)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function importarUrl() {
+    const url = importUrl.trim()
+    if (!url) return
+    await ingest({ kind: 'url', url }, 'Link')
+    setImportUrl('')
   }
 
   async function toggle(item: Item) {
@@ -124,6 +160,35 @@ export function KnowledgeManager({ agentId }: { agentId: string }) {
           </div>
         </div>
       )}
+
+      {/* Importar arquivo / URL */}
+      <div style={{ ...CARD, marginBottom: 16 }}>
+        <label style={T.label}>Importar de arquivo ou link</label>
+        <p style={{ ...T.sub, fontSize: 12, margin: '4px 0 14px' }}>
+          Envie um catálogo, tabela de preços ou política (PDF, TXT, CSV) ou cole um link do seu site. A IA extrai o texto e adiciona à base.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label className="btn-ghost" style={{ fontSize: 13, padding: '10px 16px', cursor: importing ? 'not-allowed' : 'pointer', opacity: importing ? 0.5 : 1 }}>
+            {importing ? 'Importando…' : '📎 Enviar arquivo'}
+            <input type="file" accept=".pdf,.txt,.csv,.md,.tsv" disabled={importing}
+              onChange={e => { const f = e.target.files?.[0]; if (f) importarArquivo(f); e.currentTarget.value = '' }}
+              style={{ display: 'none' }} />
+          </label>
+          <span style={{ ...T.mono, fontSize: 9, color: C.faint }}>ou</span>
+          <input className="field" value={importUrl} onChange={e => setImportUrl(e.target.value)}
+            placeholder="https://seusite.com.br/precos" disabled={importing}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); importarUrl() } }}
+            style={{ flex: 1, minWidth: 200 }} />
+          <button onClick={importarUrl} disabled={importing || !importUrl.trim()} className="btn-primary" style={{ fontSize: 13 }}>
+            Importar link
+          </button>
+        </div>
+        {importMsg && <p style={{ color: C.green, fontFamily: FONT.dm, fontSize: 13, marginTop: 12 }}>{importMsg}</p>}
+        {importErr && <p style={{ color: C.red, fontFamily: FONT.dm, fontSize: 13, marginTop: 12 }}>{importErr}</p>}
+        <p style={{ fontFamily: FONT.jb, fontSize: 9, color: C.faint, marginTop: 12 }}>
+          DOCX/Excel: exporte como PDF ou CSV antes de enviar. Máx. 8 MB por arquivo.
+        </p>
+      </div>
 
       {/* Adicionar manual */}
       <div style={{ ...CARD, marginBottom: 20 }}>
