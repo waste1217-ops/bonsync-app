@@ -17,17 +17,21 @@ export default function EditarClientePage() {
   const [saved, setSaved]     = useState(false)
   const [email, setEmail]     = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [responsavel, setResponsavel] = useState('')
+  const [notas, setNotas]     = useState('')
   const [sub, setSub] = useState({ plan_name: 'Padrão', monthly_price: 0, status: 'trial' })
 
   useEffect(() => {
     async function load() {
       const [{ data: profile }, { data: subscription }] = await Promise.all([
-        supabase.from('profiles').select('email, company_name').eq('id', id).single(),
+        supabase.from('profiles').select('email, company_name, responsavel, internal_notes').eq('id', id).single(),
         supabase.from('subscriptions').select('*').eq('client_id', id).single(),
       ])
       if (profile) {
         setEmail(profile.email ?? '')
         setCompanyName(profile.company_name ?? '')
+        setResponsavel(profile.responsavel ?? '')
+        setNotas(profile.internal_notes ?? '')
       }
       if (subscription) {
         setSub({
@@ -46,7 +50,7 @@ export default function EditarClientePage() {
     setSaving(true); setError('')
 
     const { error: e1 } = await supabase.from('profiles')
-      .update({ company_name: companyName }).eq('id', id)
+      .update({ company_name: companyName, responsavel, internal_notes: notas }).eq('id', id)
     if (e1) { setError(e1.message); setSaving(false); return }
 
     const { error: e2 } = await supabase.from('subscriptions').upsert({
@@ -97,6 +101,21 @@ export default function EditarClientePage() {
               O e-mail não pode ser alterado aqui. Para trocar a senha, use "Redefinir senha".
             </p>
           </div>
+          <div>
+            <label style={T.label}>Responsável (Bonsync)</label>
+            <input className="field" type="text" value={responsavel}
+              onChange={e => setResponsavel(e.target.value)}
+              placeholder="Quem cuida deste cliente" />
+          </div>
+        </div>
+
+        {/* Anotações internas */}
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 15, color: C.white, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>Anotações internas</h2>
+          <p style={{ ...T.sub, fontSize: 12, marginTop: -4 }}>🔒 Visível apenas para a equipe Bonsync — o cliente nunca vê isto.</p>
+          <textarea className="field" rows={4} value={notas}
+            onChange={e => setNotas(e.target.value)}
+            placeholder="Observações, combinados, contexto do relacionamento…" />
         </div>
 
         {/* Assinatura */}

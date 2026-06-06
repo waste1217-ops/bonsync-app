@@ -39,7 +39,10 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
         <div style={L.pageHeader}>
           <div>
             <h1 style={T.h1}>{cliente.company_name || cliente.email}</h1>
-            <p style={{ ...T.sub, marginTop: 4 }}>{cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>
+            <p style={{ ...T.sub, marginTop: 4 }}>
+              {cliente.email} · cliente desde {new Date(cliente.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+              {cliente.responsavel ? ` · responsável: ${cliente.responsavel}` : ''}
+            </p>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <a href={`/admin/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize: 13, padding: '10px 20px' }}>
@@ -56,6 +59,16 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      {/* Anotações internas (só admin vê esta tela) */}
+      {cliente.internal_notes && (
+        <div style={{ ...CARD, marginBottom: 20, borderColor: 'rgba(245,158,11,0.3)' }}>
+          <p style={{ ...T.mono, color: C.yellow, marginBottom: 8 }}>🔒 Anotações internas</p>
+          <p style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white, lineHeight: 1.6, fontWeight: 300, whiteSpace: 'pre-wrap' }}>
+            {cliente.internal_notes}
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}>

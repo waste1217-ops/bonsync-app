@@ -9,7 +9,7 @@ export default async function PainelLayout({ children }: { children: React.React
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single()
+    .from('profiles').select('id, role, email, company_name, created_at').eq('id', user.id).single()
 
   if (!profile) redirect('/login')
   if (profile.role === 'admin') redirect('/admin')

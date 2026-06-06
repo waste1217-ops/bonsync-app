@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, agentStatusLabel, convStatusVariant, convStatusLabel } from '@/lib/styles'
 import { AgentToggle } from './AgentToggle'
 import { DeleteButton } from '@/components/DeleteButton'
+import { DuplicateAgentButton } from '@/components/DuplicateAgentButton'
 import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
 export default async function AgenteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -155,6 +156,7 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
           <a href={`/admin/agentes/${id}/editar`} className="btn-ghost" style={{ fontSize: 12, padding: '9px 18px' }}>
             Editar configuração
           </a>
+          <DuplicateAgentButton agentId={id} />
           <DeleteButton
             label="Excluir agente"
             confirmText={`Tem certeza que deseja excluir o agente "${agent.name}"? Todas as conversas e métricas serão perdidas.`}

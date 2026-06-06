@@ -5,7 +5,7 @@ export default async function AdminClientesPage() {
   const supabase = await createClient()
   const { data: clientes } = await supabase
     .from('profiles')
-    .select('id, email, company_name, created_at, agents(id, name, status)')
+    .select('id, email, company_name, responsavel, created_at, agents(id, name, status)')
     .eq('role', 'client')
     .order('created_at', { ascending: false })
 
@@ -26,8 +26,8 @@ export default async function AdminClientesPage() {
       {/* Tabela */}
       <div style={TABLE}>
         {/* Col headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1fr', gap: 16, padding: '10px 24px', borderBottom: `1px solid rgba(80,130,210,0.08)` }}>
-          {['Empresa', 'E-mail', 'Agentes', 'Cadastro'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.6fr 1.2fr 1.4fr 1fr', gap: 16, padding: '10px 24px', borderBottom: `1px solid rgba(80,130,210,0.08)` }}>
+          {['Empresa', 'E-mail', 'Responsável', 'Agentes', 'Cadastro'].map(h => (
             <span key={h} style={T.tableHead}>{h}</span>
           ))}
         </div>
@@ -44,9 +44,10 @@ export default async function AdminClientesPage() {
         {clientes?.map((c: any) => (
           <a key={c.id} href={`/admin/clientes/${c.id}`}
             className="trow"
-            style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr 1fr', gap: 16, cursor: 'pointer' }}>
+            style={{ display: 'grid', gridTemplateColumns: '2fr 1.6fr 1.2fr 1.4fr 1fr', gap: 16, cursor: 'pointer' }}>
             <span style={T.cell}>{c.company_name || '—'}</span>
             <span style={T.cellMuted}>{c.email}</span>
+            <span style={T.cellMuted}>{c.responsavel || '—'}</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {c.agents?.length > 0
                 ? c.agents.map((a: any) => (
