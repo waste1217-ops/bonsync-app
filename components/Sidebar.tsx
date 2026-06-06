@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -23,34 +24,53 @@ function MeshMark({ size = 24, animate = false }: { size?: number; animate?: boo
   )
 }
 
-const adminNav = [
-  { href: '/admin',           label: 'Visão geral',    icon: HomeIcon },
-  { href: '/admin/assistente',label: 'Copiloto',       icon: SparkIcon },
-  { href: '/admin/clientes',  label: 'Clientes',       icon: UsersIcon },
-  { href: '/admin/agentes',   label: 'Agentes',        icon: BoltIcon },
-  { href: '/admin/templates', label: 'Templates',      icon: BookIcon },
-  { href: '/admin/conversas', label: 'Conversas',      icon: ChatIcon },
-  { href: '/admin/negocios',  label: 'Negócios',       icon: DealIcon },
-  { href: '/admin/metricas',  label: 'Métricas',       icon: ChartIcon },
-  { href: '/admin/status',    label: 'Status',         icon: PulseIcon },
+type NavItem = { href: string; label: string; icon: ComponentType<IconProps> }
+type NavGroup = { section: string | null; items: NavItem[] }
+
+const adminNav: NavGroup[] = [
+  { section: null, items: [
+    { href: '/admin',            label: 'Visão geral',    icon: HomeIcon },
+    { href: '/admin/assistente', label: 'Copiloto',       icon: SparkIcon },
+  ] },
+  { section: 'Operação', items: [
+    { href: '/admin/clientes',   label: 'Clientes',       icon: UsersIcon },
+    { href: '/admin/agentes',    label: 'Agentes',        icon: BoltIcon },
+    { href: '/admin/templates',  label: 'Templates',      icon: BookIcon },
+    { href: '/admin/conversas',  label: 'Conversas',      icon: ChatIcon },
+    { href: '/admin/negocios',   label: 'Negócios',       icon: DealIcon },
+  ] },
+  { section: 'Análise', items: [
+    { href: '/admin/metricas',   label: 'Analytics',      icon: ChartIcon },
+  ] },
+  { section: 'Infraestrutura', items: [
+    { href: '/admin/status',       label: 'Status',         icon: PulseIcon },
+    { href: '/admin/instancias',   label: 'Instâncias',     icon: BoltIcon },
+    { href: '/admin/configuracoes',label: 'Configurações',  icon: SettingsIcon },
+  ] },
 ]
 
-const clientNav = [
-  { href: '/painel',                  label: 'Visão geral',     icon: HomeIcon },
-  { href: '/painel/assistente',       label: 'Copiloto',        icon: SparkIcon },
-  { href: '/painel/conversas',        label: 'Conversas',       icon: ChatIcon },
-  { href: '/painel/negocios',         label: 'Negócios',        icon: DealIcon },
-  { href: '/painel/status',           label: 'Status do agente', icon: BoltIcon },
-  { href: '/painel/conhecimento',     label: 'Conhecimento',    icon: BookIcon },
-  { href: '/painel/metricas',         label: 'Métricas',        icon: ChartIcon },
-  { href: '/painel/configuracoes',    label: 'Configurações',   icon: SettingsIcon },
+const clientNav: NavGroup[] = [
+  { section: null, items: [
+    { href: '/painel',               label: 'Visão geral',      icon: HomeIcon },
+    { href: '/painel/assistente',    label: 'Copiloto',         icon: SparkIcon },
+  ] },
+  { section: 'Atendimento', items: [
+    { href: '/painel/conversas',     label: 'Conversas',        icon: ChatIcon },
+    { href: '/painel/negocios',      label: 'Negócios',         icon: DealIcon },
+    { href: '/painel/status',        label: 'Status do agente', icon: BoltIcon },
+    { href: '/painel/conhecimento',  label: 'Conhecimento',     icon: BookIcon },
+  ] },
+  { section: 'Conta', items: [
+    { href: '/painel/metricas',      label: 'Métricas',         icon: ChartIcon },
+    { href: '/painel/configuracoes', label: 'Configurações',    icon: SettingsIcon },
+  ] },
 ]
 
 export function Sidebar({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
-  const nav      = profile.role === 'admin' ? adminNav : clientNav
+  const groups   = profile.role === 'admin' ? adminNav : clientNav
 
   async function logout() {
     await supabase.auth.signOut()
@@ -98,17 +118,26 @@ export function Sidebar({ profile }: { profile: Profile }) {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
-        {nav.map(item => {
-          const active = isActive(item.href)
-          const Icon   = item.icon
-          return (
-            <Link key={item.href} href={item.href}
-              className={`nav-item${active ? ' active' : ''}`}>
-              <Icon size={16} color={active ? 'oklch(72% 0.21 225)' : 'var(--c-muted)'} />
-              {item.label}
-            </Link>
-          )
-        })}
+        {groups.map((group, gi) => (
+          <div key={gi} style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: gi === 0 ? 0 : 10 }}>
+            {group.section && (
+              <span style={{ fontFamily: 'var(--font-jb)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--c-faint)', padding: '4px 14px 6px' }}>
+                {group.section}
+              </span>
+            )}
+            {group.items.map(item => {
+              const active = isActive(item.href)
+              const Icon   = item.icon
+              return (
+                <Link key={item.href} href={item.href}
+                  className={`nav-item${active ? ' active' : ''}`}>
+                  <Icon size={16} color={active ? 'oklch(72% 0.21 225)' : 'var(--c-muted)'} />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* User footer */}
