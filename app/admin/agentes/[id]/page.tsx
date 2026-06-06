@@ -6,6 +6,7 @@ import { AgentToggle } from './AgentToggle'
 import { DeleteButton } from '@/components/DeleteButton'
 import { DuplicateAgentButton } from '@/components/DuplicateAgentButton'
 import { SaveAsTemplateButton } from '@/components/SaveAsTemplateButton'
+import { KnowledgeManager } from '@/components/KnowledgeManager'
 import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
 export default async function AgenteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -177,6 +178,13 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
             redirectTo="/admin/agentes"
           />
         </div>
+      </div>
+
+      {/* Conhecimento */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 6 }}>Base de conhecimento</h2>
+        <p style={{ ...T.sub, fontSize: 12, marginBottom: 14 }}>Itens que o agente usa para responder. Gerencie pelo admin sem precisar do acesso do cliente.</p>
+        <KnowledgeManager agentId={id} />
       </div>
 
       {/* Conversas */}
