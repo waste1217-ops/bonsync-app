@@ -31,6 +31,7 @@ type NavGroup = { section: string | null; items: NavItem[] }
 const adminNav: NavGroup[] = [
   { section: null, items: [
     { href: '/admin',            label: 'Visão geral',    icon: HomeIcon },
+    { href: '/admin/alertas',    label: 'Alertas',        icon: BellIcon },
     { href: '/admin/assistente', label: 'Copiloto',       icon: SparkIcon },
   ] },
   { section: 'Operação', items: [
@@ -215,6 +216,11 @@ function PulseIcon({ size = 16, color = 'currentColor' }: IconProps) {
 function BookIcon({ size = 16, color = 'currentColor' }: IconProps) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+  </svg>
+}
+function BellIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 }
 function DealIcon({ size = 16, color = 'currentColor' }: IconProps) {
