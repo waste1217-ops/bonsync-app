@@ -37,18 +37,34 @@ export default async function PainelPage() {
     .eq('agent_id', agent?.id ?? '').gte('started_at', inicioMes)
 
   const { data: deals } = await supabase
-    .from('deals').select('status').eq('agent_id', agent?.id ?? '')
+    .from('deals').select('status, detected_at').eq('agent_id', agent?.id ?? '')
   const leads  = deals?.length ?? 0
   const vendas = deals?.filter(d => d.status === 'confirmed').length ?? 0
   const taxaConv = total ? Math.round((vendas / total) * 100) : 0
+  const oportunidadesHoje = deals?.filter(d => d.detected_at && d.detected_at >= inicioHoje).length ?? 0
 
   // Leads classificados pela IA
   const { data: leadRows } = await supabase
-    .from('conversations').select('lead_status')
+    .from('conversations').select('lead_status, lead_updated_at')
     .eq('agent_id', agent?.id ?? '')
   const qualificados = leadRows?.filter(l => l.lead_status === 'qualificado').length ?? 0
   const potenciais   = leadRows?.filter(l => l.lead_status === 'potencial').length ?? 0
   const curiosos     = leadRows?.filter(l => l.lead_status === 'curioso').length ?? 0
+  const leadsHoje    = leadRows?.filter(l => l.lead_status === 'qualificado' && l.lead_updated_at && l.lead_updated_at >= inicioHoje).length ?? 0
+
+  // ── Resumo de hoje (texto dinâmico) ──
+  const abertasGeral = (total ?? 0) - (resolved ?? 0) - (escalated ?? 0)
+  const plural = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`
+  let resumoHoje: string
+  if ((convHoje ?? 0) === 0) {
+    resumoHoje = abertasGeral > 0
+      ? `Ainda não houve atendimentos hoje. Você tem ${plural(abertasGeral, 'conversa em aberto', 'conversas em aberto')} que podem precisar de atenção.`
+      : 'Ainda não houve atendimentos hoje. Assim que seu agente conversar, o resumo aparece aqui.'
+  } else {
+    let s = `Hoje seu agente realizou ${plural(convHoje ?? 0, 'atendimento', 'atendimentos')}, captou ${plural(leadsHoje, 'lead qualificado', 'leads qualificados')} e gerou ${plural(oportunidadesHoje, 'oportunidade de venda', 'oportunidades de venda')}.`
+    if (abertasGeral > 0) s += ` Existem ${plural(abertasGeral, 'conversa em aberto', 'conversas em aberto')} que podem precisar de atenção.`
+    resumoHoje = s
+  }
 
   const { data: recentes } = await supabase
     .from('conversations').select('*')
@@ -80,9 +96,45 @@ export default async function PainelPage() {
   return (
     <div className="animate-slide-up" style={{ maxWidth: 960 }}>
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={S.h1}>Visão geral</h1>
-        <p style={S.sub}>Painel do seu agente Bonsync.</p>
+        <p style={S.sub}>Acompanhe em tempo real o desempenho do seu agente, leads captados e oportunidades geradas.</p>
+      </div>
+
+      {/* Resumo de hoje — card premium */}
+      <div style={{
+        position: 'relative', overflow: 'hidden', marginBottom: 24,
+        background: 'linear-gradient(135deg, oklch(22% 0.07 230 / 0.55), var(--c-deep))',
+        border: '1px solid oklch(70% 0.16 220 / 0.35)',
+        borderRadius: 16, padding: '20px 22px',
+        boxShadow: '0 0 0 1px oklch(70% 0.16 220 / 0.05), 0 8px 30px oklch(50% 0.2 230 / 0.12)',
+      }}>
+        <div style={{ position: 'absolute', right: -40, top: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, oklch(65% 0.2 220/0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+            background: 'oklch(65% 0.2 220 / 0.16)', border: '1px solid oklch(70% 0.18 220 / 0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="oklch(80% 0.16 215)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'oklch(80% 0.12 215)', marginBottom: 8 }}>
+              Resumo de hoje
+            </p>
+            <p style={{ fontFamily: 'var(--font-dm)', fontSize: 16, color: 'var(--c-white)', lineHeight: 1.6, fontWeight: 300 }}>
+              {resumoHoje}
+            </p>
+            {(leadsHoje > 0 || abertasGeral > 0) && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+                {leadsHoje > 0 && <a href="/painel/leads" className="btn-primary" style={{ fontSize: 12, padding: '8px 16px' }}>Ver leads</a>}
+                {abertasGeral > 0 && <a href="/painel/conversas" className="btn-ghost" style={{ fontSize: 12, padding: '8px 16px' }}>Conversas em aberto</a>}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Agent status card */}
