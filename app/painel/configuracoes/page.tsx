@@ -10,6 +10,10 @@ export default function PainelConfigPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [empresa, setEmpresa] = useState('')
+  const [perfil, setPerfil] = useState({
+    objetivo: '', objetivo_conversas: '', especialidade: '', publico: '', meta: '', regiao: '',
+    servicos: '', integracoes: '',
+  })
   const [cfg, setCfg] = useState({
     prompt: '', tom: 'profissional', saudacao: '',
     escalation_mode: 'on_demand', escalate_after_messages: 0,
@@ -29,6 +33,13 @@ export default function PainelConfigPage() {
       if (prof) setEmpresa(prof.company_name ?? '')
       if (data) {
         setAgent(data)
+        const p = data.config?.profile ?? {}
+        setPerfil({
+          objetivo: p.objetivo ?? '', objetivo_conversas: p.objetivo_conversas ?? '',
+          especialidade: p.especialidade ?? '', publico: p.publico ?? '', meta: p.meta ?? '', regiao: p.regiao ?? '',
+          servicos: Array.isArray(p.servicos) ? p.servicos.join(', ') : '',
+          integracoes: Array.isArray(p.integracoes) ? p.integracoes.join(', ') : '',
+        })
         const bh = data.config?.business_hours ?? {}
         setCfg({
           prompt:                  data.config?.prompt                  ?? '',
@@ -54,10 +65,17 @@ export default function PainelConfigPage() {
     e.preventDefault()
     setSaving(true)
     const { bh_enabled, bh_start, bh_end, bh_weekdays, ...rest } = cfg
+    const toArr = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
     const novoConfig = {
       ...agent.config,
       ...rest,
       business_hours: { enabled: bh_enabled, start: bh_start, end: bh_end, weekdays: bh_weekdays },
+      profile: {
+        objetivo: perfil.objetivo.trim(), objetivo_conversas: perfil.objetivo_conversas.trim(),
+        especialidade: perfil.especialidade.trim(), publico: perfil.publico.trim(),
+        meta: perfil.meta.trim(), regiao: perfil.regiao.trim(),
+        servicos: toArr(perfil.servicos), integracoes: toArr(perfil.integracoes),
+      },
     }
     const { data: { user } } = await supabase.auth.getUser()
     await Promise.all([
@@ -103,6 +121,48 @@ export default function PainelConfigPage() {
             <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
               Aparece no seu painel e nos relatórios. Para trocar e-mail/senha, fale com a Bonsync.
             </p>
+          </div>
+        </div>
+
+        {/* Perfil comercial */}
+        <div style={sectionStyle}>
+          <h2 style={sectionTitle}>Perfil comercial</h2>
+          <p style={{ ...T.sub, fontSize: 12, marginTop: -8, marginBottom: 16 }}>
+            Aparece na aba “Meu Agente”. Ajuda você e a IA a entenderem o foco do negócio.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={T.label}>Objetivo comercial</label>
+              <textarea className="field" rows={2} value={perfil.objetivo}
+                onChange={e => setPerfil({ ...perfil, objetivo: e.target.value })}
+                placeholder="Ex: Atender clientes interessados em fulfillment, tirar dúvidas, captar leads e encaminhar oportunidades." />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={T.label}>Especialidade</label>
+                <input className="field" value={perfil.especialidade} onChange={e => setPerfil({ ...perfil, especialidade: e.target.value })} placeholder="Fulfillment para e-commerce" />
+              </div>
+              <div>
+                <label style={T.label}>Público atendido</label>
+                <input className="field" value={perfil.publico} onChange={e => setPerfil({ ...perfil, publico: e.target.value })} placeholder="Lojas virtuais e marketplaces" />
+              </div>
+              <div>
+                <label style={T.label}>Principal meta</label>
+                <input className="field" value={perfil.meta} onChange={e => setPerfil({ ...perfil, meta: e.target.value })} placeholder="Qualificar leads e gerar oportunidades" />
+              </div>
+              <div>
+                <label style={T.label}>Região de atuação</label>
+                <input className="field" value={perfil.regiao} onChange={e => setPerfil({ ...perfil, regiao: e.target.value })} placeholder="Guarulhos/SP e nacional" />
+              </div>
+            </div>
+            <div>
+              <label style={T.label}>Serviços (separados por vírgula)</label>
+              <input className="field" value={perfil.servicos} onChange={e => setPerfil({ ...perfil, servicos: e.target.value })} placeholder="Armazenagem, Picking, Packing, Expedição, Devoluções" />
+            </div>
+            <div>
+              <label style={T.label}>Integrações (separadas por vírgula)</label>
+              <input className="field" value={perfil.integracoes} onChange={e => setPerfil({ ...perfil, integracoes: e.target.value })} placeholder="Mercado Livre, Shopee, Amazon, Shopify, Tiny ERP" />
+            </div>
           </div>
         </div>
 
