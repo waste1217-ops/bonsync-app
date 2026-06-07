@@ -1,199 +1,144 @@
 import { createClient } from '@/lib/supabase/server'
-import { C, T, L, CARD, FONT } from '@/lib/styles'
-import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
+import { C, T, CARD, FONT } from '@/lib/styles'
+import { BarChart, RankBars, type Bar } from '@/components/BarChart'
 
-function BarChart({ data, height = 80 }: { data: number[]; height?: number }) {
-  const max = Math.max(...data, 1)
-  return (
-    <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height }}>
-      {data.map((v, i) => (
-        <div key={i} style={{
-          flex: 1,
-          height: Math.max(4, (v / max) * height),
-          background: i === data.length - 1 ? 'oklch(55% 0.24 225/0.9)' : 'oklch(55% 0.24 225/0.3)',
-          borderRadius: '3px 3px 0 0',
-          transition: 'height .4s',
-        }} />
-      ))}
-    </div>
-  )
-}
+export const dynamic = 'force-dynamic'
 
-export default async function PainelMetricasPage() {
+const STOPWORDS = new Set(['a','o','e','é','de','do','da','que','em','um','uma','para','com','não','nao','os','as','no','na','se','por','mais','dos','das','ao','à','aos','às','meu','minha','seu','sua','isso','isto','esse','essa','este','esta','como','mas','ou','já','ja','eu','você','voce','vc','me','te','lhe','nos','ele','ela','foi','ser','está','esta','estou','tem','ter','vai','quero','queria','pode','poderia','sim','bom','boa','dia','tarde','noite','oi','olá','ola','obrigado','obrigada','favor','aqui','tudo','bem','então','entao','pra','pro','até','ate','sobre','quanto','qual','quais','onde','quando','sou','the'])
+
+export default async function RelatoriosPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const { data: agent } = await supabase.from('agents').select('id').eq('client_id', user!.id).single()
+  const agentId = agent?.id ?? ''
 
-  const { data: agent } = await supabase
-    .from('agents').select('id, name, status, config').eq('client_id', user!.id).single()
+  const agora = Date.now()
+  const d30 = new Date(agora - 30 * 86400000).toISOString()
+  const d180 = new Date(agora - 180 * 86400000).toISOString()
 
-  // Busca conversas dos últimos 7 dias
-  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: convs } = await supabase
+    .from('conversations').select('id, started_at, status, lead_status')
+    .eq('agent_id', agentId).gte('started_at', d180).limit(6000)
+  const conversas = convs ?? []
+  const convIds = conversas.map(c => c.id)
 
-  const [
-    { data: conversas7d },
-    { data: conversas30d },
-    { count: totalAll },
-  ] = await Promise.all([
-    supabase.from('conversations').select('*').eq('agent_id', agent?.id ?? '').gte('started_at', since7d),
-    supabase.from('conversations').select('*').eq('agent_id', agent?.id ?? '').gte('started_at', since30d),
-    supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('agent_id', agent?.id ?? ''),
+  const [{ data: msgs }, { data: deals }] = await Promise.all([
+    convIds.length
+      ? supabase.from('messages').select('conversation_id, role, content, created_at')
+          .in('conversation_id', convIds).gte('created_at', d30)
+          .order('conversation_id', { ascending: true }).order('created_at', { ascending: true }).limit(10000)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase.from('deals').select('status').eq('agent_id', agentId),
   ])
+  const mensagens = msgs ?? []
 
-  const c7   = conversas7d  ?? []
-  const c30  = conversas30d ?? []
-  const tot7 = c7.length
-  const res7 = c7.filter(c => c.status === 'resolved').length
-  const esc7 = c7.filter(c => c.status === 'escalated').length
-  const taxa = tot7 ? Math.round((res7 / tot7) * 100) : 0
+  const total = conversas.length
+  const resolvidas = conversas.filter(c => c.status === 'resolved').length
+  const escaladas  = conversas.filter(c => c.status === 'escalated').length
+  const taxaResol = total ? Math.round((resolvidas / total) * 100) : 0
+  const vendas = deals?.filter(d => d.status === 'confirmed').length ?? 0
+  const taxaConv = total ? Math.round((vendas / total) * 100) : 0
 
-  // Volume diário dos últimos 7 dias
-  const dias = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() - (6 - i))
-    return d.toISOString().slice(0, 10)
-  })
-  const volumeDiario = dias.map(d =>
-    c7.filter(c => c.started_at?.slice(0, 10) === d).length
-  )
+  const qualificados = conversas.filter(c => c.lead_status === 'qualificado').length
+  const potenciais   = conversas.filter(c => c.lead_status === 'potencial').length
+  const curiosos     = conversas.filter(c => c.lead_status === 'curioso').length
 
-  // Canais
-  const canais = ['whatsapp', 'email', 'site'].map(ch => ({
-    nome: ch === 'whatsapp' ? 'WhatsApp' : ch === 'email' ? 'E-mail' : 'Site',
-    count: c30.filter(c => c.channel === ch).length,
-    pct: c30.length ? Math.round((c30.filter(c => c.channel === ch).length / c30.length) * 100) : 0,
-  }))
+  // Atendimentos por dia (30d)
+  const diaMap: Record<string, number> = {}
+  for (let i = 29; i >= 0; i--) diaMap[new Date(agora - i * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })] = 0
+  for (const c of conversas) { const k = new Date(c.started_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); if (k in diaMap) diaMap[k]++ }
+  const convs30 = Object.values(diaMap).reduce((a, b) => a + b, 0)
+  const porDia: Bar[] = Object.keys(diaMap).map((k, i) => ({ label: i % 3 === 0 ? `${k.slice(8)}/${k.slice(5, 7)}` : '', value: diaMap[k] }))
 
-  // Consumo de tokens (todas as conversas do agente)
-  const { data: convIdsData } = await supabase
-    .from('conversations').select('id').eq('agent_id', agent?.id ?? '')
-  const convIds = (convIdsData ?? []).map(c => c.id)
-  let tokens = { inputTokens: 0, outputTokens: 0 }
-  if (convIds.length > 0) {
-    const { data: msgs } = await supabase
-      .from('messages').select('input_tokens, output_tokens').in('conversation_id', convIds)
-    tokens = sumTokens(msgs ?? [])
+  // Horários de pico (mensagens dos clientes, por hora BRT)
+  const horas = new Array(24).fill(0)
+  for (const m of mensagens) {
+    if (m.role !== 'user') continue
+    const h = Number(new Date(m.created_at).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).slice(0, 2)) % 24
+    horas[h]++
   }
-  const custo = estimateCostBRL(tokens, agent?.config?.model)
+  const porHora: Bar[] = horas.map((v, h) => ({ label: h % 3 === 0 ? `${h}h` : '', value: v }))
 
-  if (!agent) return (
-    <div style={{ textAlign: 'center', padding: '80px 0', ...T.sub }}>
-      Nenhum agente configurado. Entre em contato com a Bonsync.
-    </div>
-  )
+  // Tempo médio de resposta (pares cliente→agente, 30d)
+  let somaSeg = 0, pares = 0, atual = '', ultimaUser: number | null = null
+  for (const m of mensagens) {
+    if (m.conversation_id !== atual) { atual = m.conversation_id; ultimaUser = null }
+    const t = new Date(m.created_at).getTime()
+    if (m.role === 'user') ultimaUser = t
+    else if (ultimaUser !== null) { const d = (t - ultimaUser) / 1000; if (d >= 0 && d < 3600) { somaSeg += d; pares++ } ultimaUser = null }
+  }
+  const tms = pares ? Math.round(somaSeg / pares) : 0
+  const tmsTxt = tms >= 60 ? `${Math.floor(tms / 60)}m ${tms % 60}s` : `${tms}s`
+
+  // Assuntos mais perguntados (mensagens dos clientes, 30d)
+  const freq: Record<string, number> = {}
+  for (const m of mensagens) {
+    if (m.role !== 'user' || !m.content) continue
+    for (const p of String(m.content).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)) {
+      if (p.length < 4 || STOPWORDS.has(p)) continue
+      freq[p] = (freq[p] ?? 0) + 1
+    }
+  }
+  const topTermos: Bar[] = Object.entries(freq).map(([t, v]) => ({ label: t, value: v })).sort((a, b) => b.value - a.value).slice(0, 10)
+
+  const titulo = { fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 } as React.CSSProperties
 
   return (
-    <div className="animate-slide-up" style={{ maxWidth: 900 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={T.h1}>Métricas</h1>
-        <p style={{ ...T.sub, marginTop: 4 }}>Desempenho do agente <strong style={{ color: C.white }}>{agent.name}</strong>.</p>
+    <div className="animate-slide-up" style={{ maxWidth: 1000 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={T.h1}>Relatórios</h1>
+        <p style={{ ...T.sub, marginTop: 4 }}>Como seu agente vem performando — atendimentos, horários, assuntos e conversões.</p>
       </div>
 
-      {/* KPIs — últimos 7 dias */}
-      <p style={{ ...T.mono, color: C.muted, marginBottom: 12 }}>Últimos 7 dias</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 16, marginBottom: 16 }}>
         {[
-          { label: 'Atendimentos',    value: tot7,           color: C.blueB },
-          { label: 'Resolvidos',      value: res7,           color: C.green },
-          { label: 'Escalados',       value: esc7,           color: C.yellow },
-          { label: 'Taxa resolução',  value: `${taxa}%`,     color: taxa >= 80 ? C.green : C.yellow },
+          { label: 'Atendimentos', value: total, color: C.blueB },
+          { label: 'Últimos 30 dias', value: convs30, color: C.blueB },
+          { label: 'Taxa de resolução', value: `${taxaResol}%`, color: taxaResol >= 70 ? C.green : C.yellow },
+          { label: 'Taxa de conversão', value: `${taxaConv}%`, color: C.green },
+          { label: 'Tempo médio resposta', value: tmsTxt, color: C.blueB },
         ].map(k => (
           <div key={k.label} style={CARD}>
             <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 10 }}>{k.label}</p>
-            <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 32, color: k.color, letterSpacing: '-0.03em', lineHeight: 1 }}>
-              {k.value}
-            </p>
+            <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 24, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{k.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Consumo de IA */}
-      <div style={{ ...CARD, marginBottom: 24 }}>
-        <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
-          Consumo de IA
-        </h2>
-        <p style={{ ...T.sub, fontSize: 12, marginBottom: 20 }}>Tokens processados pelo seu agente (total).</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-          {[
-            { label: 'Tokens entrada', value: fmtTokens(tokens.inputTokens),  color: C.blueB },
-            { label: 'Tokens saída',   value: fmtTokens(tokens.outputTokens), color: C.blueB },
-            { label: 'Custo estimado', value: fmtBRL(custo),                  color: C.green },
-          ].map(k => (
-            <div key={k.label} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '16px 18px' }}>
-              <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 8 }}>{k.label}</p>
-              <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 24, color: k.color, letterSpacing: '-0.02em', lineHeight: 1 }}>
-                {k.value}
-              </p>
-            </div>
-          ))}
-        </div>
+      {/* Leads + conversões */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 16 }}>
+        {[
+          { label: 'Leads qualificados', value: qualificados, color: C.green },
+          { label: 'Leads potenciais', value: potenciais, color: C.yellow },
+          { label: 'Curiosos', value: curiosos, color: C.muted },
+          { label: 'Vendas / p/ humano', value: `${vendas} / ${escaladas}`, color: C.blueB },
+        ].map(k => (
+          <div key={k.label} style={CARD}>
+            <p style={{ ...T.mono, color: C.muted, fontSize: 9, marginBottom: 10 }}>{k.label}</p>
+            <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 22, color: k.color, lineHeight: 1 }}>{k.value}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Gráfico de volume diário */}
-      <div style={{ ...CARD, marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
-              Volume diário
-            </h2>
-            <p style={{ ...T.sub, fontSize: 12 }}>Atendimentos por dia na última semana</p>
-          </div>
-          <span style={{ fontFamily: FONT.jb, fontSize: 11, color: C.blueB, background: 'oklch(55% 0.24 225/0.12)', border: '1px solid oklch(55% 0.24 225/0.25)', padding: '5px 12px', borderRadius: 100 }}>
-            {tot7} total
-          </span>
-        </div>
-        <BarChart data={volumeDiario} height={90} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-          {dias.map(d => (
-            <span key={d} style={{ ...T.mono, color: C.faint, fontSize: 9 }}>
-              {new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short' })}
-            </span>
-          ))}
-        </div>
+      {/* Atendimentos por dia */}
+      <div style={{ ...CARD, marginBottom: 16 }}>
+        <h2 style={titulo}>Atendimentos por dia</h2>
+        <p style={{ ...T.sub, fontSize: 12, marginBottom: 8 }}>Últimos 30 dias.</p>
+        <BarChart data={porDia} color={C.blueB} height={150} />
       </div>
 
-      {/* Distribuição por canal + histórico total */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+      {/* Pico + assuntos */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={CARD}>
-          <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
-            Por canal
-          </h2>
-          <p style={{ ...T.sub, fontSize: 12, marginBottom: 20 }}>Últimos 30 dias</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {canais.map(ch => (
-              <div key={ch.nome}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>{ch.nome}</span>
-                  <span style={{ fontFamily: FONT.jb, fontSize: 11, color: C.muted }}>{ch.count} msgs</span>
-                </div>
-                <div style={{ height: 6, borderRadius: 3, background: 'rgba(80,130,210,0.12)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${ch.pct}%`, background: 'oklch(55% 0.24 225)', borderRadius: 3, transition: 'width .6s ease' }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <h2 style={titulo}>Horários de pico</h2>
+          <p style={{ ...T.sub, fontSize: 12, marginBottom: 8 }}>Quando seus clientes mais escrevem (30d).</p>
+          <BarChart data={porHora} color={C.yellow} height={150} />
         </div>
-
         <div style={CARD}>
-          <h2 style={{ fontFamily: FONT.space, fontWeight: 600, fontSize: 16, color: C.white, marginBottom: 4 }}>
-            Histórico total
-          </h2>
-          <p style={{ ...T.sub, fontSize: 12, marginBottom: 20 }}>Desde o início</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {[
-              { label: 'Total de conversas', value: totalAll ?? 0, color: C.blueB },
-              { label: 'Resolvidas (30d)',   value: c30.filter(c => c.status === 'resolved').length,  color: C.green },
-              { label: 'Escaladas (30d)',    value: c30.filter(c => c.status === 'escalated').length, color: C.yellow },
-              { label: 'Em aberto (30d)',    value: c30.filter(c => c.status === 'open').length,      color: C.muted },
-            ].map(s => (
-              <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${C.border}` }}>
-                <span style={{ ...T.mono, color: C.muted, fontSize: 9 }}>{s.label}</span>
-                <span style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 22, color: s.color, letterSpacing: '-0.02em' }}>
-                  {s.value}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h2 style={titulo}>Assuntos mais perguntados</h2>
+          <p style={{ ...T.sub, fontSize: 12, marginBottom: 14 }}>Termos mais usados pelos clientes (30d).</p>
+          <RankBars data={topTermos} color={C.green} />
         </div>
       </div>
     </div>
