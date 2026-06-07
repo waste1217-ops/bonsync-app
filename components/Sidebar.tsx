@@ -64,6 +64,7 @@ const clientNav: NavGroup[] = [
   { section: null, items: [
     { href: '/painel',               label: 'Visão geral',      icon: HomeIcon },
     { href: '/painel/agente',        label: 'Meu Agente',       icon: BoltIcon },
+    { href: '/painel/notificacoes',  label: 'Notificações',     icon: BellIcon },
     { href: '/painel/assistente',    label: 'Copiloto',         icon: SparkIcon },
   ] },
   { section: 'Atendimento', items: [
