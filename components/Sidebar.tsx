@@ -75,6 +75,7 @@ const clientNav: NavGroup[] = [
   ] },
   { section: 'Análise', items: [
     { href: '/painel/metricas',      label: 'Relatórios',       icon: ChartIcon },
+    { href: '/painel/avaliacoes',    label: 'Avaliações',       icon: SparkIcon },
   ] },
   { section: 'Conta', items: [
     { href: '/painel/status',        label: 'Status do agente', icon: PulseIcon },
