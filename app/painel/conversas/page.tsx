@@ -1,57 +1,45 @@
 import { createClient } from '@/lib/supabase/server'
-import { ClientConversasBrowser, type ClientConv } from '@/components/ClientConversasBrowser'
+import { T } from '@/lib/styles'
+import { ConversasCentral, type Conv } from '@/components/ConversasCentral'
 
-const S = {
-  mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
-}
+export const dynamic = 'force-dynamic'
+
+const STOPWORDS = new Set(['a','o','e','é','de','do','da','que','em','um','uma','para','com','não','nao','os','as','no','na','se','por','mais','dos','das','ao','meu','minha','seu','sua','isso','isto','esse','essa','este','esta','como','mas','ou','já','ja','eu','você','voce','vc','me','te','nos','ele','ela','foi','ser','está','esta','estou','tem','ter','vai','quero','queria','pode','sim','bom','boa','dia','tarde','noite','oi','olá','ola','obrigado','obrigada','favor','aqui','tudo','bem','então','entao','pra','pro','até','ate','sobre','quanto','qual','quais','onde','quando','sou','the'])
 
 export default async function PainelConversasPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: agent } = await supabase
-    .from('agents').select('id').eq('client_id', user!.id).single()
+  const { data: agent } = await supabase.from('agents').select('id').eq('client_id', user!.id).single()
+  const aid = agent?.id ?? ''
 
   const { data: conversas } = await supabase
     .from('conversations')
-    .select('id, contact_identifier, channel, status, started_at, message_count')
-    .eq('agent_id', agent?.id ?? '')
-    .order('started_at', { ascending: false })
-    .limit(500)
+    .select('id, contact_identifier, channel, status, started_at, ended_at, message_count, lead_status, lead_reason')
+    .eq('agent_id', aid).order('started_at', { ascending: false }).limit(500)
+  const all = (conversas ?? []) as Conv[]
 
-  const all = (conversas ?? []) as ClientConv[]
-  const total     = all.length
-  const resolved  = all.filter(c => c.status === 'resolved').length
-  const escalated = all.filter(c => c.status === 'escalated').length
-  const open      = all.filter(c => c.status === 'open').length
+  // Assuntos mais perguntados (para insights)
+  let termos: string[] = []
+  const ids = all.slice(0, 200).map(c => c.id)
+  if (ids.length) {
+    const { data: msgs } = await supabase.from('messages').select('content').in('conversation_id', ids).eq('role', 'user').limit(800)
+    const freq: Record<string, number> = {}
+    for (const m of msgs ?? []) {
+      for (const p of String(m.content || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)) {
+        if (p.length < 4 || STOPWORDS.has(p)) continue
+        freq[p] = (freq[p] ?? 0) + 1
+      }
+    }
+    termos = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t)
+  }
 
   return (
-    <div className="animate-slide-up" style={{ maxWidth: 1000 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 24, color: 'var(--c-white)', letterSpacing: '-0.025em', marginBottom: 4 }}>
-          Conversas
-        </h1>
-        <p style={{ fontFamily: 'var(--font-dm)', fontWeight: 300, fontSize: 14, color: 'var(--c-muted)' }}>
-          Todos os atendimentos do seu agente. Busque, filtre e exporte quando precisar.
-        </p>
+    <div className="animate-slide-up" style={{ maxWidth: 1280 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={T.h1}>Conversas</h1>
+        <p style={{ ...T.sub, marginTop: 4 }}>Acompanhe todos os atendimentos do seu agente, veja conversas em aberto e identifique oportunidades.</p>
       </div>
-
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
-        {[
-          { label: 'Total', value: total },
-          { label: 'Em aberto', value: open },
-          { label: 'Resolvidas', value: resolved },
-          { label: 'Com atendente', value: escalated },
-        ].map(s => (
-          <div key={s.label} className="card">
-            <p style={{ ...S.mono, color: 'var(--c-muted)', fontSize: 9, marginBottom: 8 }}>{s.label}</p>
-            <p style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 30, color: 'var(--c-blue-b)', letterSpacing: '-0.03em', lineHeight: 1 }}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <ClientConversasBrowser conversas={all} />
+      <ConversasCentral conversas={all} termos={termos} />
     </div>
   )
 }
