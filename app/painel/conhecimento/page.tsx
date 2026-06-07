@@ -15,15 +15,14 @@ export default async function ConhecimentoPage() {
   )
 
   return (
-    <div className="animate-slide-up" style={{ maxWidth: 760 }}>
-      <div style={{ marginBottom: 28 }}>
+    <div className="animate-slide-up" style={{ maxWidth: 1280 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={T.h1}>Conhecimento</h1>
         <p style={{ ...T.sub, marginTop: 4 }}>
-          Fatos sobre o seu negócio que o agente usa nas respostas — horários, políticas, preços, prazos.
-          Adicione e edite à vontade; vale na próxima conversa.
+          Gerencie as informações que seu agente usa para responder clientes. Aprove sugestões da IA, adicione documentos e mantenha as respostas sempre atualizadas.
         </p>
       </div>
-      <KnowledgeManager agentId={agent.id} />
+      <KnowledgeManager agentId={agent.id} central />
     </div>
   )
 }
