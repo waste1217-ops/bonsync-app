@@ -41,8 +41,6 @@ export default async function PainelPage() {
   const leads  = deals?.length ?? 0
   const vendas = deals?.filter(d => d.status === 'confirmed').length ?? 0
   const taxaConv = total ? Math.round((vendas / total) * 100) : 0
-  const oportunidadesHoje = deals?.filter(d => d.detected_at && d.detected_at >= inicioHoje).length ?? 0
-
   // Leads classificados pela IA
   const { data: leadRows } = await supabase
     .from('conversations').select('lead_status, lead_updated_at')
@@ -50,21 +48,39 @@ export default async function PainelPage() {
   const qualificados = leadRows?.filter(l => l.lead_status === 'qualificado').length ?? 0
   const potenciais   = leadRows?.filter(l => l.lead_status === 'potencial').length ?? 0
   const curiosos     = leadRows?.filter(l => l.lead_status === 'curioso').length ?? 0
-  const leadsHoje    = leadRows?.filter(l => l.lead_status === 'qualificado' && l.lead_updated_at && l.lead_updated_at >= inicioHoje).length ?? 0
 
-  // ── Resumo de hoje (texto dinâmico) ──
+  // ── Resumo de hoje (texto dinâmico, comercial) ──
   const abertasGeral = (total ?? 0) - (resolved ?? 0) - (escalated ?? 0)
+  const leadsMes  = leadRows?.filter(l => l.lead_status === 'qualificado' && l.lead_updated_at && l.lead_updated_at >= inicioMes).length ?? 0
+  const vendasMes = deals?.filter(d => d.status === 'confirmed' && d.detected_at && d.detected_at >= inicioMes).length ?? 0
   const plural = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`
-  let resumoHoje: string
-  if ((convHoje ?? 0) === 0) {
-    resumoHoje = abertasGeral > 0
-      ? `Ainda não houve atendimentos hoje. Você tem ${plural(abertasGeral, 'conversa em aberto', 'conversas em aberto')} que podem precisar de atenção.`
-      : 'Ainda não houve atendimentos hoje. Assim que seu agente conversar, o resumo aparece aqui.'
-  } else {
-    let s = `Hoje seu agente realizou ${plural(convHoje ?? 0, 'atendimento', 'atendimentos')}, captou ${plural(leadsHoje, 'lead qualificado', 'leads qualificados')} e gerou ${plural(oportunidadesHoje, 'oportunidade de venda', 'oportunidades de venda')}.`
-    if (abertasGeral > 0) s += ` Existem ${plural(abertasGeral, 'conversa em aberto', 'conversas em aberto')} que podem precisar de atenção.`
-    resumoHoje = s
-  }
+
+  const statusFrase = agent.status === 'active'
+    ? 'Seu agente está ativo e monitorando o WhatsApp.'
+    : agent.status === 'paused'
+      ? 'Seu agente está pausado no momento — ative em Status para voltar a atender.'
+      : 'Seu agente está com um erro e foi pausado. Fale com a Bonsync.'
+
+  const hojeFrase = (convHoje ?? 0) === 0
+    ? (abertasGeral > 0
+        ? `Até agora foram 0 conversas hoje, mas existem ${plural(abertasGeral, 'atendimento em aberto', 'atendimentos em aberto')} que precisam de atenção.`
+        : 'Ainda não houve conversas hoje — assim que alguém chamar, o agente responde na hora.')
+    : `Hoje já foram ${plural(convHoje ?? 0, 'conversa', 'conversas')}` +
+        (abertasGeral > 0 ? `, e ${plural(abertasGeral, 'atendimento segue em aberto', 'atendimentos seguem em aberto')} aguardando atenção.` : '.')
+
+  const mesFrase = (convMes ?? 0) > 0
+    ? `No mês, o agente já realizou ${plural(convMes ?? 0, 'conversa', 'conversas')}, captou ${plural(leadsMes, 'lead', 'leads')} e gerou ${plural(vendasMes, 'venda', 'vendas')}.`
+    : 'Este mês ainda está começando — os resultados aparecem aqui conforme as conversas acontecem.'
+
+  const linhasResumo = [statusFrase, hojeFrase, mesFrase]
+
+  const statusLabelCurto: Record<string, string> = { active: 'Ativo', paused: 'Pausado', error: 'Erro' }
+  const statusCor: Record<string, string> = { active: 'var(--c-green)', paused: 'var(--c-yellow)', error: 'var(--c-red)' }
+  const miniIndicadores = [
+    { label: 'Hoje', value: `${convHoje ?? 0} ${(convHoje ?? 0) === 1 ? 'conversa' : 'conversas'}`, color: 'var(--c-white)' },
+    { label: 'Em aberto', value: String(abertasGeral), color: abertasGeral > 0 ? 'var(--c-yellow)' : 'var(--c-white)' },
+    { label: 'Status', value: statusLabelCurto[agent.status] ?? agent.status, color: statusCor[agent.status] ?? 'var(--c-white)' },
+  ]
 
   const { data: recentes } = await supabase
     .from('conversations').select('*')
@@ -121,16 +137,30 @@ export default async function PainelPage() {
             </svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'oklch(80% 0.12 215)', marginBottom: 8 }}>
+            <p style={{ fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'oklch(80% 0.12 215)', marginBottom: 10 }}>
               Resumo de hoje
             </p>
-            <p style={{ fontFamily: 'var(--font-dm)', fontSize: 16, color: 'var(--c-white)', lineHeight: 1.6, fontWeight: 300 }}>
-              {resumoHoje}
-            </p>
-            {(leadsHoje > 0 || abertasGeral > 0) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {linhasResumo.map((linha, i) => (
+                <p key={i} style={{ fontFamily: 'var(--font-dm)', fontSize: i === 0 ? 15 : 14.5, color: i === 0 ? 'var(--c-white)' : 'var(--c-muted)', lineHeight: 1.55, fontWeight: 300 }}>
+                  {linha}
+                </p>
+              ))}
+            </div>
+
+            {/* Mini indicadores */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+              {miniIndicadores.map(m => (
+                <div key={m.label} style={{ background: 'oklch(28% 0.05 230 / 0.4)', border: '1px solid oklch(70% 0.16 220 / 0.2)', borderRadius: 10, padding: '8px 14px' }}>
+                  <span style={{ fontFamily: 'var(--font-jb)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--c-faint)' }}>{m.label}</span>
+                  <p style={{ fontFamily: 'var(--font-space)', fontWeight: 600, fontSize: 15, color: m.color, lineHeight: 1.1, marginTop: 3 }}>{m.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {abertasGeral > 0 && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
-                {leadsHoje > 0 && <a href="/painel/leads" className="btn-primary" style={{ fontSize: 12, padding: '8px 16px' }}>Ver leads</a>}
-                {abertasGeral > 0 && <a href="/painel/conversas" className="btn-ghost" style={{ fontSize: 12, padding: '8px 16px' }}>Conversas em aberto</a>}
+                <a href="/painel/conversas" className="btn-ghost" style={{ fontSize: 12, padding: '8px 16px' }}>Conversas em aberto</a>
               </div>
             )}
           </div>
