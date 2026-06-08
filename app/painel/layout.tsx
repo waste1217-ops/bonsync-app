@@ -5,7 +5,10 @@ import { ClientThemeWrapper } from '@/components/ThemeToggle'
 
 export default async function PainelLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Middleware já valida o token em toda rota protegida; aqui usamos a sessão
+  // do cookie (sem round-trip extra ao Auth) para reduzir latência por render.
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase

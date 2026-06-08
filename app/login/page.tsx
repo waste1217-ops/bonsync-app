@@ -39,14 +39,19 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error || !data.user) {
       setError('E-mail ou senha incorretos.')
       setLoading(false)
       return
     }
-    router.push('/')
-    router.refresh()
+    // Vai direto para o painel certo, evitando o redirecionamento extra por "/"
+    let dest = '/painel'
+    try {
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
+      if (prof?.role === 'admin') dest = '/admin'
+    } catch { /* mantém /painel */ }
+    router.replace(dest)
   }
 
   const nodes = [
@@ -205,7 +210,7 @@ export default function LoginPage() {
               className="btn-primary"
               style={{ marginTop: 8, width: '100%', padding: '15px' }}
             >
-              {loading ? 'Verificando…' : 'Entrar'}
+              {loading ? 'Entrando…' : 'Entrar'}
             </button>
           </form>
 

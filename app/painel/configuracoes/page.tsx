@@ -48,7 +48,7 @@ export default function PainelConfigPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
       const [{ data: a }, { data: prof }] = await Promise.all([
         supabase.from('agents').select('*').eq('client_id', user!.id).single(),
         supabase.from('profiles').select('company_name').eq('id', user!.id).single(),
@@ -75,7 +75,7 @@ export default function PainelConfigPage() {
 
   async function salvar() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
     const novaConfig = { ...(agent.config || {}), ...cfg, profile: { ...cfg.profile, servicos: toArr(cfg.profile?.servicos), integracoes: toArr(cfg.profile?.integracoes) } }
     await Promise.all([
       supabase.from('agents').update({ name: agentNome, config: novaConfig, updated_at: new Date().toISOString() }).eq('id', agent.id),

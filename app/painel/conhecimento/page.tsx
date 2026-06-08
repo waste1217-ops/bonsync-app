@@ -4,7 +4,7 @@ import { KnowledgeManager } from '@/components/KnowledgeManager'
 
 export default async function ConhecimentoPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
   const { data: agent } = await supabase
     .from('agents').select('id, name').eq('client_id', user!.id).single()
 

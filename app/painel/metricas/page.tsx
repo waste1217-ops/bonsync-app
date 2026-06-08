@@ -19,7 +19,7 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 export default async function RelatoriosPage({ searchParams }: { searchParams: Promise<{ p?: string; from?: string; to?: string }> }) {
   const sp = await searchParams
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
   const { data: agent } = await supabase.from('agents').select('id').eq('client_id', user!.id).single()
   const aid = agent?.id ?? ''
 

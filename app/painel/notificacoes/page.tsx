@@ -13,7 +13,7 @@ function formatContact(id: string | null): string {
 
 export default async function NotificacoesPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
   const { data: agent } = await supabase.from('agents').select('id, name, status').eq('client_id', user!.id).single()
   const agentId = agent?.id ?? ''
 

@@ -21,7 +21,7 @@ function Tag({ children, cor = 'var(--c-blue-b)' }: { children: React.ReactNode;
 
 export default async function MeuAgentePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
   const { data: agent } = await supabase.from('agents').select('*').eq('client_id', user!.id).single()
 
   if (!agent) return (

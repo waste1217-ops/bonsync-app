@@ -8,7 +8,7 @@ const STOPWORDS = new Set(['a','o','e','é','de','do','da','que','em','um','uma'
 
 export default async function PainelConversasPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
   const { data: agent } = await supabase.from('agents').select('id').eq('client_id', user!.id).single()
   const aid = agent?.id ?? ''
 

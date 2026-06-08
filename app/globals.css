@@ -66,8 +66,24 @@ html, body { height: 100%; }
 
 .animate-pulse-dot  { animation: pulse-dot  2s   ease       infinite; }
 .animate-blink      { animation: blink      1.1s step-end   infinite; }
-.animate-slide-up   { animation: slide-up   0.35s ease      forwards; }
+.animate-slide-up   { animation: slide-up   0.30s ease      forwards; }
 .animate-glow-pulse { animation: glow-pulse 2.5s ease       infinite; }
+
+/* Skeleton loading (feedback instantâneo de navegação) */
+@keyframes shimmer { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--c-deep) 25%, var(--c-surface) 37%, var(--c-deep) 63%);
+  background-size: 960px 100%;
+  animation: shimmer 1.3s linear infinite;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+}
+
+/* Respeita usuários/dispositivos que pedem menos movimento — e alivia repaint */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-dot, .animate-glow-pulse, .skeleton { animation: none !important; }
+  .animate-slide-up { animation-duration: 0.01s; }
+}
 
 /* ─────────────────────────────────────────────
    Noise overlay — z-index BAIXO para não sobrepor
@@ -193,7 +209,7 @@ select.field    { appearance: none; cursor: pointer; }
   font-size: 14px;
   color: var(--c-muted);
   cursor: pointer;
-  transition: all .2s;
+  transition: background .18s, color .18s, border-color .18s;
   border: 1px solid transparent;
   background: transparent;
   width: 100%;

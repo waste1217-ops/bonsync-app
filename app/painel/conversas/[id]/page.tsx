@@ -9,7 +9,7 @@ const S = {
 export default async function ConversaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
 
   // Busca conversa + valida que pertence ao agente do cliente
   const { data: conversa } = await supabase
