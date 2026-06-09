@@ -187,21 +187,28 @@ export async function processMessage({
     return
   }
 
-  // ── 7. Salva resposta e envia ──────────────────────────────────────────
-  await Promise.all([
-    supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      role:            'assistant',
-      content:         reply,
-    }),
-    supabase.from('conversations').update({
-      message_count: msgCount,
-      updated_at:    new Date().toISOString(),
-    }).eq('id', conversation.id),
-    sendText(instance, contactJid, reply),
-  ])
+  // ── 7. Salva resposta (status "enviando") e ENTREGA, rastreando o status ──
+  const { data: savedMsg } = await supabase.from('messages').insert({
+    conversation_id: conversation.id,
+    role:            'assistant',
+    content:         reply,
+    send_status:     'enviando',
+  }).select('id').single()
+  await supabase.from('conversations').update({
+    message_count: msgCount,
+    updated_at:    new Date().toISOString(),
+  }).eq('id', conversation.id)
 
-  console.log(`[agent] ✓ Respondido para ${contactId} — conversa ${conversation.id}`)
+  try {
+    console.log(`[agent] → enviando resposta para ${contactId} (instância ${instance})`)
+    await sendText(instance, contactJid, reply)
+    if (savedMsg?.id) await supabase.from('messages').update({ send_status: 'enviada' }).eq('id', savedMsg.id)
+    console.log(`[agent] ✓ resposta ENTREGUE para ${contactId} — conversa ${conversation.id}`)
+  } catch (err: any) {
+    const motivo = mapSendError(err)
+    if (savedMsg?.id) await supabase.from('messages').update({ send_status: 'falha', send_error: motivo }).eq('id', savedMsg.id)
+    console.error(`[agent] ✗ resposta NÃO entregue para ${contactId} — ${motivo}`)
+  }
 
   // ── 8. Classifica o lead (não bloqueia o atendimento) ──────────────────
   try {
@@ -225,6 +232,18 @@ export async function processMessage({
  * Classifica a temperatura do lead com base na conversa.
  * Usa Haiku (barato). Retorna status + motivo curto.
  */
+/** Motivo legível a partir do erro de envio (sendText lança "Evolution API <status>: <body>") */
+function mapSendError(err: any): string {
+  const msg = String(err?.message || '')
+  const m = msg.match(/Evolution API (\d+)/)
+  const s = m ? Number(m[1]) : 0
+  if (s === 401 || s === 403) return 'Token inválido ou sem permissão'
+  if (s === 404) return 'Instância/canal não encontrado (desconectado)'
+  if (s === 400) return 'Número inválido ou requisição rejeitada'
+  if (!s) return 'WhatsApp API indisponível (timeout ou conexão)'
+  return `Erro ${s} da API do WhatsApp`
+}
+
 async function classifyLead(
   anthropic: Anthropic,
   messages: { role: 'user' | 'assistant'; content: string }[],

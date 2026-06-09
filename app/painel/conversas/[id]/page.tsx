@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { ConversationSummary } from '@/components/ConversationSummary'
+import { MessageDelivery } from '@/components/MessageDelivery'
 
 const S = {
   mono: { fontFamily: 'var(--font-jb)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
@@ -108,8 +109,9 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
                 <p style={{ fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-white)', lineHeight: 1.65, fontWeight: 300, marginBottom: 6 }}>
                   {msg.content}
                 </p>
-                <span style={{ fontFamily: 'var(--font-dm)', fontSize: 11, color: 'var(--c-faint)' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-dm)', fontSize: 11, color: 'var(--c-faint)' }}>
                   {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
+                  {msg.role !== 'user' && <MessageDelivery messageId={msg.id} status={msg.send_status} error={msg.send_error} />}
                 </span>
               </div>
             </div>

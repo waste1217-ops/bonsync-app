@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { C, T, FONT, badgeStyle, convStatusVariant, convStatusLabel } from '@/lib/styles'
 import { MessageRating } from '@/components/MessageRating'
 import { FavoriteToggle } from '@/components/FavoriteToggle'
+import { MessageDelivery } from '@/components/MessageDelivery'
 
 function formatContact(id: string | null): string {
   if (!id) return 'Anônimo'
@@ -111,6 +112,7 @@ export default async function AdminConversaDetailPage({ params }: { params: Prom
                   <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, display: 'inline-flex', alignItems: 'center' }}>
                     {new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                     {!isUser && <MessageRating messageId={msg.id} initial={msg.rating ?? null} />}
+                    {!isUser && <span style={{ marginLeft: 8 }}><MessageDelivery messageId={msg.id} status={msg.send_status} error={msg.send_error} /></span>}
                   </span>
                 </div>
               </div>
