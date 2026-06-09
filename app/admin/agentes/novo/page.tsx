@@ -83,7 +83,7 @@ export default function NovoAgentePage() {
 
     if (err) { setError(err.message); setLoading(false); return }
     setSuccess(true)
-    setTimeout(() => router.push('/admin/agentes'), 1200)
+    setTimeout(() => { router.push('/admin/agentes'); router.refresh() }, 1200)
   }
 
   const sectionTitle = {

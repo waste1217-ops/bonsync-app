@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { C, T, L, TABLE, TABLE_HEADER, FONT, badgeStyle, agentStatusVariant } from '@/lib/styles'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminClientesPage() {
   const supabase = await createClient()
   const { data: clientes } = await supabase

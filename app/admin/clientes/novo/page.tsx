@@ -117,7 +117,7 @@ export default function NovoClientePage() {
         )}
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => router.push('/admin/clientes')} className="btn-primary">Concluir</button>
+          <button onClick={() => { router.push('/admin/clientes'); router.refresh() }} className="btn-primary">Concluir</button>
           {done.connectUrl && (
             <a href={done.connectUrl} target="_blank" rel="noreferrer" className="btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', padding: '13px 26px', fontSize: 13 }}>
               Abrir QR agora
