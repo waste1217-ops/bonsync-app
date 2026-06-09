@@ -5,9 +5,21 @@ import { createClient } from '@/lib/supabase/client'
 import { C, T, CARD, FONT } from '@/lib/styles'
 
 const TABS = [
-  ['empresa', 'Empresa'], ['agente', 'Agente'], ['atendimento', 'Atendimento'],
+  ['empresa', 'Empresa'], ['agente', 'Agente'], ['treinamento', 'Treinamento'], ['atendimento', 'Atendimento'],
   ['horarios', 'Horários'], ['automacoes', 'Automações'], ['seguranca', 'Segurança'], ['avancado', 'Avançado'],
 ] as const
+
+// Instruções que tentam burlar a segurança — bloqueadas ao salvar
+const BLOQUEIOS = [
+  /ignore (as |todas as )?instru/i, /esque[çc]a (suas|as) (instru|regras)/i, /revele?[a-z ]*(prompt|sistema|instru[çc])/i,
+  /system prompt/i, /\baja como\b/i, /finja ser/i, /sem (nenhuma )?restri[çc]/i, /responda qualquer (assunto|pergunta|tema|coisa)/i,
+  /fora (do|de) (assunto|escopo|empresa)/i, /faturamento interno/i, /dados (confidenci|sens[íi]ve|internos)/i,
+  /chave (de )?api|\btoken\b/i, /jailbreak|\bDAN\b/i, /ignore (previous|all)/i,
+]
+function instrucaoInsegura(txt: string): boolean {
+  const t = String(txt || '')
+  return BLOQUEIOS.some(r => r.test(t))
+}
 
 const fmt = (d?: string | null) => d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'
 
@@ -41,6 +53,9 @@ export default function PainelConfigPage() {
   const [empresaNome, setEmpresaNome] = useState('')
   const [agentNome, setAgentNome] = useState('')
   const [cfg, setCfgRaw] = useState<any>(null)
+  const [testQ, setTestQ] = useState('')
+  const [testA, setTestA] = useState('')
+  const [testBusy, setTestBusy] = useState(false)
 
   function setCfg(updater: (c: any) => any) { setCfgRaw((c: any) => updater({ ...c })); setDirty(true) }
   function topo(k: string, v: any) { setCfg(c => ({ ...c, [k]: v })) }
@@ -66,6 +81,7 @@ export default function PainelConfigPage() {
           business_hours: c.business_hours ?? { enabled: false, start: '08:00', end: '18:00', weekdays: true },
           escalonar_quando: c.escalonar_quando ?? {},
           digest: c.digest ?? { conteudo: {} },
+          training: c.training ?? { instrucoes: '', regras: '', nao_fazer: '', produtos: [], faqs: [], promocoes: [] },
         })
       }
       setLoading(false)
@@ -73,7 +89,21 @@ export default function PainelConfigPage() {
     load()
   }, [])
 
+  function treinoInseguro(): boolean {
+    const t = cfg?.training || {}
+    const textos = [t.instrucoes, t.regras, t.nao_fazer,
+      ...(t.produtos || []).map((p: any) => `${p.nome} ${p.descricao}`),
+      ...(t.faqs || []).map((f: any) => `${f.pergunta} ${f.resposta}`),
+      ...(t.promocoes || []).map((p: any) => `${p.titulo} ${p.instrucao}`),
+    ].join(' \n ')
+    return instrucaoInsegura(textos)
+  }
+
   async function salvar() {
+    if (treinoInseguro()) {
+      alert('Essa instrução não pode ser salva porque tenta alterar regras de segurança do agente. Ajuste o texto do Treinamento e tente novamente.')
+      return
+    }
     setSaving(true)
     const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
     const novaConfig = { ...(agent.config || {}), ...cfg, profile: { ...cfg.profile, servicos: toArr(cfg.profile?.servicos), integracoes: toArr(cfg.profile?.integracoes) } }
@@ -103,6 +133,20 @@ export default function PainelConfigPage() {
   const bh = cfg.business_hours || {}
   const eq = cfg.escalonar_quando || {}
   const dc = cfg.digest?.conteudo || {}
+  const tr = cfg.training || {}
+  const setTrain = (k: string, v: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: v } }))
+  const addItem = (k: string, item: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: [...((c.training || {})[k] || []), item] } }))
+  const setItem = (k: string, i: number, patch: any) => setCfg(c => { const arr = [...((c.training || {})[k] || [])]; arr[i] = { ...arr[i], ...patch }; return { ...c, training: { ...(c.training || {}), [k]: arr } } })
+  const delItem = (k: string, i: number) => setCfg(c => { const arr = [...((c.training || {})[k] || [])]; arr.splice(i, 1); return { ...c, training: { ...(c.training || {}), [k]: arr } } })
+  async function testar() {
+    if (!testQ.trim()) return
+    setTestBusy(true); setTestA('')
+    try {
+      const res = await fetch('/api/painel/treino-teste', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pergunta: testQ, training: cfg.training }) })
+      const d = await res.json(); setTestA(res.ok ? d.reply : (d.error || 'Falha.'))
+    } catch { setTestA('Falha ao testar.') }
+    setTestBusy(false)
+  }
 
   const sideTitle = { fontFamily: FONT.space, fontWeight: 600, fontSize: 14, color: C.white, marginBottom: 12 } as React.CSSProperties
 
@@ -193,6 +237,145 @@ export default function PainelConfigPage() {
                 <Campo label="Assinatura da resposta" hint="Texto opcional ao final das respostas."><input className="field" value={cfg.assinatura} onChange={e => topo('assinatura', e.target.value)} placeholder="— Equipe de atendimento" /></Campo>
               </div>
             </div>
+          )}
+
+          {tab === 'treinamento' && (
+            <>
+              <div style={{ ...cardSec, borderColor: 'oklch(70% 0.16 220 / 0.3)', background: 'oklch(22% 0.06 230 / 0.3)' }}>
+                <p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.white, lineHeight: 1.6, fontWeight: 300 }}>
+                  Use esta área para ensinar seu agente a responder clientes do jeito certo — preços, produtos, regras comerciais, promoções, prazos e instruções de atendimento.
+                  <b style={{ color: 'oklch(80% 0.12 215)' }}> As regras de segurança da Bonsync continuam sempre ativas</b> e não podem ser removidas por aqui.
+                </p>
+              </div>
+              {treinoInseguro() && (
+                <div style={{ ...cardSec, borderColor: 'rgba(232,64,64,0.4)', background: 'rgba(232,64,64,0.06)' }}>
+                  <p style={{ fontFamily: FONT.dm, fontSize: 13, color: C.red }}>⚠ Há uma instrução que tenta alterar a segurança do agente. Ela está <b>bloqueada por segurança</b> e impede o salvamento até ser ajustada.</p>
+                </div>
+              )}
+
+              {/* Instruções comerciais */}
+              <div style={cardSec}>
+                <h2 style={secTitle}>Instruções comerciais</h2>
+                <p style={secSub}>Regras livres de como atender. Ex.: “Quando perguntarem sobre o produto X, informe que custa R$ 2,00.”</p>
+                <textarea className="field" rows={4} value={tr.instrucoes || ''} onChange={e => setTrain('instrucoes', e.target.value)} placeholder="Escreva instruções de atendimento e venda…" />
+              </div>
+
+              {/* Produtos e preços */}
+              <div style={cardSec}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h2 style={secTitle}>Produtos e preços</h2>
+                  <button onClick={() => addItem('produtos', { nome: '', preco: '', descricao: '', disponibilidade: 'Disponível' })} className="btn-ghost" style={{ fontSize: 11, padding: '7px 12px' }}>+ Adicionar produto</button>
+                </div>
+                {(tr.produtos || []).length === 0 ? <p style={{ ...T.sub, fontSize: 12 }}>Nenhum produto cadastrado.</p> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(tr.produtos || []).map((p: any, i: number) => (
+                      <div key={i} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          <input className="field" value={p.nome} onChange={e => setItem('produtos', i, { nome: e.target.value })} placeholder="Nome do produto" />
+                          <input className="field" value={p.preco} onChange={e => setItem('produtos', i, { preco: e.target.value })} placeholder="R$ 2,00" />
+                          <select className="field" value={p.disponibilidade} onChange={e => setItem('produtos', i, { disponibilidade: e.target.value })}><option>Disponível</option><option>Indisponível</option></select>
+                        </div>
+                        <input className="field" value={p.descricao} onChange={e => setItem('produtos', i, { descricao: e.target.value })} placeholder="Descrição / observações" />
+                        <button onClick={() => delItem('produtos', i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontFamily: FONT.jb, fontSize: 10, marginTop: 8 }}>remover</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* FAQs */}
+              <div style={cardSec}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h2 style={secTitle}>Perguntas frequentes</h2>
+                  <button onClick={() => addItem('faqs', { pergunta: '', resposta: '' })} className="btn-ghost" style={{ fontSize: 11, padding: '7px 12px' }}>+ Adicionar FAQ</button>
+                </div>
+                {(tr.faqs || []).length === 0 ? <p style={{ ...T.sub, fontSize: 12 }}>Nenhuma pergunta cadastrada.</p> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(tr.faqs || []).map((f: any, i: number) => (
+                      <div key={i} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: 12 }}>
+                        <input className="field" value={f.pergunta} onChange={e => setItem('faqs', i, { pergunta: e.target.value })} placeholder="Pergunta: Qual o preço do produto X?" style={{ marginBottom: 8 }} />
+                        <textarea className="field" rows={2} value={f.resposta} onChange={e => setItem('faqs', i, { resposta: e.target.value })} placeholder="Resposta: O produto X custa R$ 2,00." />
+                        <button onClick={() => delItem('faqs', i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontFamily: FONT.jb, fontSize: 10, marginTop: 8 }}>remover</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Regras de atendimento */}
+              <div style={cardSec}>
+                <h2 style={secTitle}>Regras de atendimento</h2>
+                <p style={secSub}>Ex.: pedir nome antes de orçamento, perguntar quantidade, oferecer alternativa, encaminhar reclamação para humano.</p>
+                <textarea className="field" rows={3} value={tr.regras || ''} onChange={e => setTrain('regras', e.target.value)} placeholder="Escreva as regras de atendimento…" />
+              </div>
+
+              {/* O que a IA não deve fazer */}
+              <div style={cardSec}>
+                <h2 style={secTitle}>O que a IA não deve fazer</h2>
+                <p style={secSub}>Restrições comerciais (não afetam a segurança). Ex.: não oferecer produto fora de estoque; não passar orçamento sem coletar dados.</p>
+                <textarea className="field" rows={3} value={tr.nao_fazer || ''} onChange={e => setTrain('nao_fazer', e.target.value)} placeholder="Liste o que o agente não deve fazer…" />
+              </div>
+
+              {/* Promoções temporárias */}
+              <div style={cardSec}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h2 style={secTitle}>Promoções ou avisos temporários</h2>
+                  <button onClick={() => addItem('promocoes', { titulo: '', instrucao: '', inicio: '', fim: '', status: true })} className="btn-ghost" style={{ fontSize: 11, padding: '7px 12px' }}>+ Adicionar promoção</button>
+                </div>
+                {(tr.promocoes || []).length === 0 ? <p style={{ ...T.sub, fontSize: 12 }}>Nenhuma promoção cadastrada.</p> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(tr.promocoes || []).map((p: any, i: number) => {
+                      const expirada = p.fim && new Date(p.fim) < new Date()
+                      return (
+                        <div key={i} style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: 12 }}>
+                          <input className="field" value={p.titulo} onChange={e => setItem('promocoes', i, { titulo: e.target.value })} placeholder="Título da promoção" style={{ marginBottom: 8 }} />
+                          <input className="field" value={p.instrucao} onChange={e => setItem('promocoes', i, { instrucao: e.target.value })} placeholder="Ex.: Até 30/06, o produto X está por R$ 2,00." style={{ marginBottom: 8 }} />
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <input className="field" type="date" value={p.inicio || ''} onChange={e => setItem('promocoes', i, { inicio: e.target.value })} style={{ width: 'auto', fontSize: 12 }} />
+                            <span style={{ ...T.mono, fontSize: 9, color: C.faint }}>até</span>
+                            <input className="field" type="date" value={p.fim || ''} onChange={e => setItem('promocoes', i, { fim: e.target.value })} style={{ width: 'auto', fontSize: 12 }} />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: FONT.dm, fontSize: 12, color: C.muted }}>
+                              <input type="checkbox" checked={p.status !== false} onChange={e => setItem('promocoes', i, { status: e.target.checked })} /> Ativa
+                            </label>
+                            <span style={{ ...T.mono, fontSize: 8.5, color: expirada ? C.red : (p.status === false ? C.muted : C.green) }}>{expirada ? 'EXPIRADA' : p.status === false ? 'INATIVA' : 'ATIVA'}</span>
+                            <div style={{ flex: 1 }} />
+                            <button onClick={() => delItem('promocoes', i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontFamily: FONT.jb, fontSize: 10 }}>remover</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Teste do agente */}
+              <div style={{ ...cardSec, borderColor: 'oklch(70% 0.16 220 / 0.3)' }}>
+                <h2 style={secTitle}>Prévia / Teste do agente</h2>
+                <p style={secSub}>Escreva uma pergunta e veja como o agente responderia com o treinamento atual (respeitando a segurança).</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <input className="field" value={testQ} onChange={e => setTestQ(e.target.value)} placeholder="Ex.: Qual o preço do produto X?" style={{ flex: 1, minWidth: 200 }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); testar() } }} />
+                  <button onClick={testar} disabled={testBusy} className="btn-primary" style={{ fontSize: 13 }}>{testBusy ? 'Testando…' : 'Testar'}</button>
+                </div>
+                {testA && (
+                  <div style={{ marginTop: 12, background: C.void, border: `1px solid ${C.borderHi}`, borderRadius: 8, padding: '12px 14px' }}>
+                    <p style={{ ...T.mono, fontSize: 9, color: 'oklch(80% 0.12 215)', marginBottom: 6 }}>Resposta do agente</p>
+                    <p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.white, lineHeight: 1.6, fontWeight: 300, whiteSpace: 'pre-wrap' }}>{testA}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Regras de segurança ativas (não editáveis) */}
+              <div style={cardSec}>
+                <h2 style={secTitle}>Regras de segurança ativas</h2>
+                <p style={secSub}>Sempre ativas e prioritárias — o treinamento nunca as sobrescreve.</p>
+                {['Proteção contra prompt injection e “ignore as instruções”', 'Foco no escopo do seu negócio', 'Sigilo do prompt e dados técnicos', 'Bloqueio de faturamento interno e dados confidenciais', 'Recusa de assuntos fora da empresa'].map(t => (
+                  <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '4px 0' }}>
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>
+                    <span style={{ ...T.sub, fontSize: 13 }}>{t}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {tab === 'atendimento' && (
