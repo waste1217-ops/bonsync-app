@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, agentStatusLabel, convStatusVariant, convStatusLabel } from '@/lib/styles'
 import { DeleteButton } from '@/components/DeleteButton'
@@ -6,9 +6,11 @@ import { ResetPasswordButton } from '@/components/ResetPasswordButton'
 import { ClientActiveToggle } from '@/components/ClientActiveToggle'
 import { PaymentsManager } from '@/components/PaymentsManager'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: cliente } = await supabase
     .from('profiles')

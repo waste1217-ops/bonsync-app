@@ -1,9 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { C, T, CARD, TABLE, TABLE_HEADER, badgeStyle, agentStatusVariant, FONT } from '@/lib/styles'
 import { estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminOverviewPage() {
-  const supabase = await createClient()
+  // Rota admin gateada no layout — service-role para ler tudo sem barreira de RLS.
+  const supabase = createAdminClient()
 
   const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 

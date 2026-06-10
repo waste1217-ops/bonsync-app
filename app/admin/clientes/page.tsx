@@ -1,15 +1,19 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { C, T, L, TABLE, TABLE_HEADER, FONT, badgeStyle, agentStatusVariant } from '@/lib/styles'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminClientesPage() {
-  const supabase = await createClient()
-  const { data: clientes } = await supabase
+  // Rota admin (gateada no layout). Usa service-role para a leitura não depender
+  // de RLS — assim o admin vê TODOS os clientes da plataforma.
+  const supabase = createAdminClient()
+  const { data: clientes, error } = await supabase
     .from('profiles')
     .select('id, email, company_name, responsavel, active, created_at, agents(id, name, status)')
     .eq('role', 'client')
     .order('created_at', { ascending: false })
+  if (error) console.error('[admin/clientes] erro ao listar:', error.message)
+  console.log('[admin/clientes] clientes encontrados:', clientes?.length ?? 0)
 
   return (
     <div className="animate-slide-up" style={{ maxWidth: 1100 }}>

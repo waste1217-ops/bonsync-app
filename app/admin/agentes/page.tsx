@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,7 +7,7 @@ const S = {
 }
 
 export default async function AdminAgentesPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: agentes } = await supabase
     .from('agents')
     .select('*, profiles(id, email, company_name)')
