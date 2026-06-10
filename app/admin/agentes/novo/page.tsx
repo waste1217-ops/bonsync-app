@@ -11,6 +11,12 @@ const MODELOS = [
   { value: 'claude-haiku-3-5',  label: 'Claude Haiku 3.5  — Máxima velocidade e custo' },
 ]
 
+// Mesmo slug usado na criação do cliente/instância
+function slugify(s: string) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30)
+}
+
 export default function NovoAgentePage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [form, setForm] = useState({
@@ -25,6 +31,7 @@ export default function NovoAgentePage() {
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [instEdited, setInstEdited] = useState(false)
   const router   = useRouter()
   const supabase = createClient()
 
@@ -123,7 +130,14 @@ export default function NovoAgentePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label style={T.label}>Cliente</label>
-              <select className="field" value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })} required>
+              <select className="field" value={form.client_id} onChange={e => {
+                const cid = e.target.value
+                const cli = clientes.find(c => c.id === cid)
+                // Pré-preenche a instância com o mesmo slug usado ao criar o cliente,
+                // a menos que o admin já tenha digitado uma instância manualmente.
+                const inst = (!instEdited && cli?.company_name) ? slugify(cli.company_name) : form.whatsapp_instance
+                setForm({ ...form, client_id: cid, whatsapp_instance: inst })
+              }} required>
                 <option value="">Selecione o cliente…</option>
                 {clientes.map(c => <option key={c.id} value={c.id}>{c.company_name || c.email}</option>)}
               </select>
@@ -205,12 +219,18 @@ export default function NovoAgentePage() {
             </div>
             <div>
               <label style={T.label}>Instância WhatsApp (Evolution API)</label>
-              <input className="field" type="text" placeholder="ex: javai"
+              <input className="field" type="text" placeholder="ex: wanted-ltda"
                 value={form.whatsapp_instance}
-                onChange={e => setForm({ ...form, whatsapp_instance: e.target.value })} />
-              <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
-                Nome exato da instância no Evolution Manager. Liga este agente ao número escaneado.
-              </p>
+                onChange={e => { setInstEdited(true); setForm({ ...form, whatsapp_instance: e.target.value }) }} />
+              {form.whatsapp_instance.trim() ? (
+                <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint, marginTop: 6 }}>
+                  Deve ser o <b style={{ color: C.muted }}>nome exato</b> da instância conectada no WhatsApp. Liga este agente ao número escaneado.
+                </p>
+              ) : (
+                <p style={{ fontFamily: FONT.jb, fontSize: 10, color: C.yellow, marginTop: 6 }}>
+                  ⚠ Sem instância, o agente <b>não responde</b> no WhatsApp. Use o mesmo nome da instância criada para o cliente.
+                </p>
+              )}
             </div>
           </div>
         </div>
