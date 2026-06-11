@@ -24,7 +24,7 @@ export default function EditarClientePage() {
   useEffect(() => {
     async function load() {
       const [{ data: profile }, { data: subscription }] = await Promise.all([
-        supabase.from('profiles').select('email, company_name, responsavel, internal_notes').eq('id', id).single(),
+        supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('subscriptions').select('*').eq('client_id', id).single(),
       ])
       if (profile) {

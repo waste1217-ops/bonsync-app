@@ -9,7 +9,7 @@ export default async function AdminClientesPage() {
   const supabase = createAdminClient()
   const { data: clientes, error } = await supabase
     .from('profiles')
-    .select('id, email, company_name, responsavel, active, created_at, agents(id, name, status)')
+    .select('id, email, company_name, active, created_at, agents(id, name, status)')
     .eq('role', 'client')
     .order('created_at', { ascending: false })
   if (error) console.error('[admin/clientes] erro ao listar:', error.message)

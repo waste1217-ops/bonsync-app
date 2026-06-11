@@ -1,11 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/apiAuth'
 
 export const dynamic = 'force-dynamic'
-
-// Bypass de diagnóstico TEMPORÁRIO — remover após investigar a lista de clientes.
-const DIAG_BYPASS = 'b0n5ync-diag-7Kq2'
 
 /**
  * Diagnóstico do estado real do banco (somente admin).
@@ -13,12 +10,9 @@ const DIAG_BYPASS = 'b0n5ync-diag-7Kq2'
  * Mostra: se a service-role key existe, total de auth.users, perfis por role,
  * e os últimos perfis criados — para descobrir por que "Clientes" mostra 0.
  */
-export async function GET(req: NextRequest) {
-  const bypass = req.nextUrl.searchParams.get('k') === DIAG_BYPASS
-  if (!bypass) {
-    const { error: authError } = await requireAdmin({ write: false })
-    if (authError) return authError
-  }
+export async function GET() {
+  const { error: authError } = await requireAdmin({ write: false })
+  if (authError) return authError
 
   const out: Record<string, unknown> = {}
   out.hasServiceRoleKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
