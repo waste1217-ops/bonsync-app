@@ -38,20 +38,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: createError.message }, { status: 400 })
     }
 
-    // 4. Garante que o profile foi criado corretamente (o trigger já faz isso,
-    //    mas fazemos upsert como segurança)
-    await adminClient.from('profiles').upsert({
-      id:           newUser.user!.id,
-      email,
-      role:         'client',
-      company_name,
-    }, { onConflict: 'id' })
+    const uid = newUser.user!.id
+    console.log('[create-user] auth user criado:', uid, email)
 
-    await logAction(ctx!.actor, 'client.create', { entity: 'client', entityId: newUser.user!.id, details: { email, empresa: company_name } })
+    // 4. Garante o profile com role=client. Tenta upsert; se falhar, reporta de verdade.
+    const { error: upErr } = await adminClient.from('profiles').upsert({
+      id: uid, email, role: 'client', company_name,
+    }, { onConflict: 'id' })
+    if (upErr) {
+      console.error('[create-user] upsert profile FALHOU:', upErr.message)
+      // tenta UPDATE direto (caso a linha já exista via trigger) antes de desistir
+      const { error: updErr } = await adminClient.from('profiles')
+        .update({ role: 'client', company_name, email }).eq('id', uid)
+      if (updErr) {
+        console.error('[create-user] update profile também falhou:', updErr.message)
+        return NextResponse.json({ error: 'Cliente autenticado, mas o perfil não foi salvo: ' + upErr.message }, { status: 500 })
+      }
+    }
+
+    // 5. Verifica que o perfil realmente existe com role=client (sem isso, ele não aparece na lista)
+    const { data: check } = await adminClient.from('profiles').select('id, role').eq('id', uid).single()
+    if (!check) {
+      console.error('[create-user] perfil não encontrado após criação:', uid)
+      return NextResponse.json({ error: 'O perfil do cliente não foi persistido. Verifique a tabela profiles / triggers.' }, { status: 500 })
+    }
+    if (check.role !== 'client') {
+      // trigger pode ter definido outro role — força client
+      await adminClient.from('profiles').update({ role: 'client' }).eq('id', uid)
+      console.warn('[create-user] role corrigido para client (estava:', check.role, ')')
+    }
+    console.log('[create-user] ✓ perfil confirmado com role=client:', uid)
+
+    await logAction(ctx!.actor, 'client.create', { entity: 'client', entityId: uid, details: { email, empresa: company_name } })
 
     return NextResponse.json({
       success: true,
-      user_id: newUser.user!.id,
+      user_id: uid,
       message: `Cliente "${company_name}" criado com sucesso.`,
     })
 
