@@ -226,6 +226,129 @@ export async function processMessage({
   } catch (e: any) {
     console.error('[agent] classificação de lead falhou:', e?.message)
   }
+
+  // ── 9. Detecta intenção de agendamento e cria/atualiza a solicitação ─────
+  try {
+    const fullHistory = [...messages, { role: 'assistant' as const, content: reply }]
+    await detectAppointment(anthropic, {
+      agentId: agent.id,
+      conversationId: conversation.id,
+      contactId,
+      contactName,
+      address: (cfg.scheduling?.address as string) || '',
+      durationMin: Number(cfg.scheduling?.duration_min) || 30,
+    }, fullHistory)
+  } catch (e: any) {
+    console.error('[Appointment] Erro ao detectar/criar solicitação:', e?.message)
+  }
+}
+
+/**
+ * Detecta intenção de agendamento na conversa (saída estruturada via tool_use)
+ * e cria/atualiza um registro REAL em `meetings`, vinculado ao agente, à conversa
+ * e ao contato. Enquanto faltar data/horário fica em 'aguardando_info'; quando
+ * houver o mínimo (data + horário), vira 'aguardando' (aguardando confirmação
+ * da empresa) e aparece em Negócios → Agenda comercial.
+ */
+async function detectAppointment(
+  anthropic: Anthropic,
+  ctx: { agentId: string; conversationId: string; contactId: string; contactName: string; address: string; durationMin: number },
+  history: { role: 'user' | 'assistant'; content: string }[],
+) {
+  const supabase = createAdminClient()
+  const hojeSP = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const diaSemana = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long' })
+
+  const transcript = history.slice(-16)
+    .map(m => `${m.role === 'user' ? 'Cliente' : 'Agente'}: ${String(m.content).slice(0, 500)}`)
+    .join('\n')
+
+  const resp = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 350,
+    system: [
+      `Hoje é ${hojeSP} (${diaSemana}), fuso America/Sao_Paulo.`,
+      'Você extrai a intenção de AGENDAMENTO (reunião, visita presencial, call, ligação, demonstração, "falar com o comercial") de uma conversa de atendimento.',
+      'Resolva datas relativas ("amanhã", "sexta", "dia 20", "semana que vem") para o formato YYYY-MM-DD com base na data de hoje.',
+      'Horário no formato HH:MM (24h). Se um campo NÃO foi informado pelo cliente, deixe-o como string vazia. NUNCA invente data ou horário.',
+      'Sempre chame a ferramenta registrar_agendamento.',
+    ].join('\n'),
+    tools: [{
+      name: 'registrar_agendamento',
+      description: 'Registra a intenção de agendamento detectada na conversa, com os campos já informados pelo cliente.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          tem_intencao: { type: 'boolean', description: 'true se o cliente demonstrou intenção de marcar reunião/visita/call/demonstração' },
+          contato_nome: { type: 'string', description: 'Nome do cliente, se informado' },
+          data: { type: 'string', description: 'Data solicitada em YYYY-MM-DD, ou vazio' },
+          horario: { type: 'string', description: 'Horário solicitado em HH:MM, ou vazio' },
+          periodo: { type: 'string', description: 'manha, tarde ou noite, se informado sem horário exato' },
+          modalidade: { type: 'string', description: 'presencial, online ou telefone, ou vazio' },
+          tipo: { type: 'string', description: 'reuniao, visita, call ou demo' },
+          assunto: { type: 'string', description: 'Assunto/objetivo, se mencionado' },
+        },
+        required: ['tem_intencao'],
+      },
+    }],
+    tool_choice: { type: 'tool', name: 'registrar_agendamento' },
+    messages: [{ role: 'user', content: `Conversa:\n${transcript}` }],
+  })
+
+  const tool = resp.content.find((b: any) => b.type === 'tool_use') as any
+  const d = tool?.input ?? {}
+  if (!d.tem_intencao) { console.log('[Appointment] Sem intenção de agendamento nesta conversa.'); return }
+  console.log('[Appointment] Intenção de agendamento detectada')
+
+  const data = (d.data || '').trim() || null
+  const horario = (d.horario || '').trim() || null
+  const missing = [!data && 'data', !horario && 'horario'].filter(Boolean)
+  console.log('[Appointment] Dados coletados:', JSON.stringify({ contato: d.contato_nome, data, horario, modalidade: d.modalidade }))
+  if (missing.length) console.log('[Appointment] Campos ausentes:', missing.join(', '))
+  else console.log('[Appointment] Dados completos')
+
+  const status = missing.length ? 'aguardando_info' : 'aguardando'
+  const campos: any = {
+    agent_id: ctx.agentId,
+    conversation_id: ctx.conversationId,
+    contact_identifier: ctx.contactId,
+    contato_nome: (d.contato_nome || ctx.contactName || '').trim() || null,
+    tipo: d.tipo || 'reuniao',
+    modalidade: d.modalidade || null,
+    assunto: (d.assunto || '').trim() || null,
+    periodo: d.periodo || null,
+    requested_date: data,
+    requested_time: horario,
+    duracao_min: ctx.durationMin,
+    origem: 'WhatsApp',
+    source: 'ai_sugerida',
+    status,
+    updated_at: new Date().toISOString(),
+  }
+  if (status === 'aguardando' && data) campos.start_at = new Date(`${data}T${horario}:00-03:00`).toISOString()
+  if (ctx.address && campos.modalidade === 'presencial') campos.endereco = ctx.address
+
+  // já existe um rascunho/solicitação desta conversa? então atualiza
+  const { data: existente } = await supabase
+    .from('meetings')
+    .select('id, status')
+    .eq('conversation_id', ctx.conversationId)
+    .in('status', ['detectada', 'aguardando_info', 'aguardando', 'sugerida'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existente) {
+    console.log('[Appointment] Atualizando solicitação existente:', existente.id)
+    const { error } = await supabase.from('meetings').update(campos).eq('id', existente.id)
+    if (error) { console.error('[Appointment] Erro ao criar solicitação:', error.message); return }
+    console.log(`[Appointment] Solicitação atualizada: ${existente.id} — status ${status} — conversa ${ctx.conversationId}`)
+  } else {
+    console.log('[Appointment] Criando solicitação')
+    const { data: nova, error } = await supabase.from('meetings').insert(campos).select('id').single()
+    if (error) { console.error('[Appointment] Erro ao criar solicitação:', error.message); return }
+    console.log(`[Appointment] Solicitação criada: ${nova?.id} — clientId via agent ${ctx.agentId} — conversa ${ctx.conversationId} — status ${status}`)
+  }
 }
 
 /**
