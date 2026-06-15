@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic'
 export default async function NegociosPage() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession(); const user = session?.user
-  const { data: agent } = await supabase.from('agents').select('id').eq('client_id', user!.id).single()
+  const { data: agent } = await supabase.from('agents').select('id, config').eq('client_id', user!.id).single()
   const aid = agent?.id ?? ''
+  const sched = (agent?.config as any)?.scheduling ?? {}
 
   if (!agent) return (
     <div style={{ textAlign: 'center', padding: '80px 0', ...T.sub }}>
@@ -53,7 +54,7 @@ export default async function NegociosPage() {
       <NegociosCentral
         deals={all} funnel={funnel} convMap={convMap}
         meetings={meetings} proposals={proposals}
-        agentId={aid} schemaReady={schemaReady}
+        agentId={aid} schemaReady={schemaReady} sched={sched}
       />
     </div>
   )

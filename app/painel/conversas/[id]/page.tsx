@@ -86,7 +86,13 @@ export default async function ConversaDetailPage({ params }: { params: Promise<{
               Nenhuma mensagem registrada nesta conversa.
             </p>
           )}
-          {messages?.map(msg => (
+          {messages?.map(msg => msg.role === 'system' ? (
+            <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+              <span style={{ fontFamily: 'var(--font-jb)', fontSize: 10.5, color: 'var(--c-faint)', background: 'var(--c-void)', border: '1px solid var(--c-border)', borderRadius: 100, padding: '4px 12px', textAlign: 'center' }}>
+                {'⟡ '}{msg.content}{'  ·  '}{new Date(msg.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ) : (
             <div key={msg.id} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row' : 'row-reverse', gap: 12, alignItems: 'flex-start' }}>
               {/* Avatar */}
               <div style={{

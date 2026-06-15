@@ -6,7 +6,7 @@ import { C, T, CARD, FONT } from '@/lib/styles'
 
 const TABS = [
   ['empresa', 'Empresa'], ['agente', 'Agente'], ['treinamento', 'Treinamento'], ['atendimento', 'Atendimento'],
-  ['horarios', 'Horários'], ['automacoes', 'Automações'], ['seguranca', 'Segurança'], ['avancado', 'Avançado'],
+  ['horarios', 'Horários'], ['agendamentos', 'Agendamentos'], ['automacoes', 'Automações'], ['seguranca', 'Segurança'], ['avancado', 'Avançado'],
 ] as const
 
 // Instruções que tentam burlar a segurança — bloqueadas ao salvar
@@ -82,6 +82,7 @@ export default function PainelConfigPage() {
           escalonar_quando: c.escalonar_quando ?? {},
           digest: c.digest ?? { conteudo: {} },
           training: c.training ?? { instrucoes: '', regras: '', nao_fazer: '', produtos: [], faqs: [], promocoes: [] },
+          scheduling: c.scheduling ?? { mode: 'manual', sabado: false, domingo: false, start: '09:00', end: '18:00', duration_min: 30, buffer_min: 15, min_notice_hours: 2, max_per_day: 8, modalidade_presencial: true, modalidade_online: true, modalidade_telefone: false, address: '', responsibles: '', timezone: 'America/Sao_Paulo' },
         })
       }
       setLoading(false)
@@ -133,6 +134,8 @@ export default function PainelConfigPage() {
   const bh = cfg.business_hours || {}
   const eq = cfg.escalonar_quando || {}
   const dc = cfg.digest?.conteudo || {}
+  const sched = cfg.scheduling || {}
+  const setSched = (k: string, v: any) => setCfg(c => ({ ...c, scheduling: { ...(c.scheduling || {}), [k]: v } }))
   const tr = cfg.training || {}
   const setTrain = (k: string, v: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: v } }))
   const addItem = (k: string, item: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: [...((c.training || {})[k] || []), item] } }))
@@ -426,6 +429,61 @@ export default function PainelConfigPage() {
                   <Campo label="Mensagem fora do horário"><textarea className="field" rows={2} value={cfg.away_message} onChange={e => topo('away_message', e.target.value)} placeholder="Olá! No momento estamos fora do horário de atendimento. Deixe sua mensagem que retornaremos em breve." /></Campo>
                 </div>
               )}
+            </div>
+          )}
+
+          {tab === 'agendamentos' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={cardSec}>
+                <h2 style={secTitle}>Modo de confirmação</h2>
+                <p style={secSub}>Define o que acontece quando a IA detecta um pedido de reunião na conversa.</p>
+                <Campo label="Como confirmar reuniões" hint="No modo manual, a IA cria a solicitação e você confirma. No automático, ela confirma sozinha em horários livres.">
+                  <select className="field" value={sched.mode || 'manual'} onChange={e => setSched('mode', e.target.value)}>
+                    <option value="manual">Manual — eu confirmo cada reunião</option>
+                    <option value="auto">Automático — IA confirma em horários livres</option>
+                    <option value="auto_allowed">Automático apenas em horários permitidos</option>
+                  </select>
+                </Campo>
+              </div>
+
+              <div style={cardSec}>
+                <h2 style={secTitle}>Disponibilidade</h2>
+                <p style={secSub}>A IA só pode oferecer horários dentro desta janela. Ela nunca inventa disponibilidade.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <Campo label="Atende das"><input className="field" type="time" value={sched.start || '09:00'} onChange={e => setSched('start', e.target.value)} style={{ width: 130 }} /></Campo>
+                    <Campo label="Até"><input className="field" type="time" value={sched.end || '18:00'} onChange={e => setSched('end', e.target.value)} style={{ width: 130 }} /></Campo>
+                    <Campo label="Fuso horário"><select className="field" value={sched.timezone || 'America/Sao_Paulo'} onChange={e => setSched('timezone', e.target.value)} style={{ width: 'auto' }}><option value="America/Sao_Paulo">Brasília (BRT)</option></select></Campo>
+                  </div>
+                  <div>
+                    <p style={{ ...T.label, marginBottom: 4 }}>Dias de atendimento</p>
+                    <Check on={true} onToggle={() => {}}>Segunda a sexta</Check>
+                    <Check on={!!sched.sabado} onToggle={() => setSched('sabado', !sched.sabado)}>Sábado</Check>
+                    <Check on={!!sched.domingo} onToggle={() => setSched('domingo', !sched.domingo)}>Domingo</Check>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    <Campo label="Duração padrão (min)"><input className="field" type="number" value={sched.duration_min ?? 30} onChange={e => setSched('duration_min', Number(e.target.value))} style={{ width: 130 }} /></Campo>
+                    <Campo label="Intervalo entre reuniões (min)"><input className="field" type="number" value={sched.buffer_min ?? 15} onChange={e => setSched('buffer_min', Number(e.target.value))} style={{ width: 160 }} /></Campo>
+                    <Campo label="Antecedência mínima (h)"><input className="field" type="number" value={sched.min_notice_hours ?? 2} onChange={e => setSched('min_notice_hours', Number(e.target.value))} style={{ width: 150 }} /></Campo>
+                    <Campo label="Limite por dia"><input className="field" type="number" value={sched.max_per_day ?? 8} onChange={e => setSched('max_per_day', Number(e.target.value))} style={{ width: 120 }} /></Campo>
+                  </div>
+                </div>
+              </div>
+
+              <div style={cardSec}>
+                <h2 style={secTitle}>Modalidades e responsáveis</h2>
+                <p style={secSub}>Como as reuniões acontecem e quem pode conduzi-las.</p>
+                <div style={{ marginBottom: 8 }}>
+                  <p style={{ ...T.label, marginBottom: 4 }}>Modalidades disponíveis</p>
+                  <Check on={!!sched.modalidade_presencial} onToggle={() => setSched('modalidade_presencial', !sched.modalidade_presencial)}>Presencial</Check>
+                  <Check on={!!sched.modalidade_online} onToggle={() => setSched('modalidade_online', !sched.modalidade_online)}>Online (videochamada)</Check>
+                  <Check on={!!sched.modalidade_telefone} onToggle={() => setSched('modalidade_telefone', !sched.modalidade_telefone)}>Telefone / ligação</Check>
+                </div>
+                {sched.modalidade_presencial && (
+                  <Campo label="Endereço presencial" hint="Usado na mensagem de confirmação de visitas presenciais."><input className="field" value={sched.address || ''} onChange={e => setSched('address', e.target.value)} placeholder="Rua Exemplo, 123 — Cidade/UF" /></Campo>
+                )}
+                <Campo label="Responsáveis disponíveis" hint="Separe por vírgula. Aparecem ao confirmar/oferecer reuniões."><input className="field" value={sched.responsibles || ''} onChange={e => setSched('responsibles', e.target.value)} placeholder="João, Maria" /></Campo>
+              </div>
             </div>
           )}
 

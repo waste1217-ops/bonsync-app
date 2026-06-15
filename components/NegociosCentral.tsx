@@ -41,6 +41,17 @@ export interface Meeting {
   provider: string | null
   meeting_url: string | null
   created_at: string | null
+  tipo: string | null
+  modalidade: string | null
+  endereco: string | null
+  periodo: string | null
+  requested_date: string | null
+  requested_time: string | null
+  alternative_slots: { date?: string; time?: string }[] | null
+}
+export interface Sched {
+  mode?: string; address?: string; responsibles?: string
+  modalidade_presencial?: boolean; modalidade_online?: boolean; modalidade_telefone?: boolean
 }
 export interface Proposal {
   id: string
@@ -79,14 +90,19 @@ const proximoPasso: Record<string, string> = {
 const STATUS_OPTS = [['pending', 'Aguardando confirmação'], ['confirmed', 'Confirmado'], ['proposta', 'Proposta enviada'], ['negociacao', 'Em negociação'], ['rejected', 'Perdido']]
 
 const mMeta: Record<string, { label: string; cor: string }> = {
-  confirmada:  { label: 'Reunião confirmada',     cor: 'var(--c-green)' },
-  aguardando:  { label: 'Aguardando confirmação', cor: 'var(--c-yellow)' },
-  realizada:   { label: 'Realizada',              cor: 'var(--c-green)' },
-  reagendada:  { label: 'Reagendada',             cor: CYAN },
-  cancelada:   { label: 'Cancelada',              cor: 'var(--c-muted)' },
-  ausente:     { label: 'Cliente não compareceu', cor: 'var(--c-red)' },
-  sugerida:    { label: 'Sugerida pela IA',       cor: CYAN },
+  detectada:          { label: 'Detectada pela IA',         cor: CYAN },
+  aguardando_info:    { label: 'Aguardando informações',    cor: 'var(--c-yellow)' },
+  aguardando:         { label: 'Aguardando confirmação',    cor: 'var(--c-yellow)' },
+  sugerida:           { label: 'Sugerida pela IA',          cor: CYAN },
+  aguardando_escolha: { label: 'Aguardando escolha do cliente', cor: CYAN },
+  confirmada:         { label: 'Reunião confirmada',        cor: 'var(--c-green)' },
+  reagendada:         { label: 'Reagendada',                cor: CYAN },
+  realizada:          { label: 'Realizada',                 cor: 'var(--c-green)' },
+  cancelada:          { label: 'Cancelada',                 cor: 'var(--c-muted)' },
+  ausente:            { label: 'Cliente não compareceu',    cor: 'var(--c-red)' },
+  recusada:           { label: 'Recusada',                  cor: 'var(--c-muted)' },
 }
+const modLabel: Record<string, string> = { presencial: 'Presencial', online: 'Online', telefone: 'Telefone' }
 const pMeta: Record<string, { label: string; cor: string }> = {
   rascunho:         { label: 'Rascunho',          cor: 'var(--c-muted)' },
   aguardando_envio: { label: 'Aguardando envio',  cor: 'var(--c-yellow)' },
@@ -124,9 +140,9 @@ function Badge({ cor, children }: { cor: string; children: React.ReactNode }) {
 }
 
 // ──────────────────────────────────────────────── componente
-export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, agentId, schemaReady }: {
+export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, agentId, schemaReady, sched }: {
   deals: Deal[]; funnel: Funnel; convMap: Record<string, string>
-  meetings: Meeting[]; proposals: Proposal[]; agentId: string; schemaReady: boolean
+  meetings: Meeting[]; proposals: Proposal[]; agentId: string; schemaReady: boolean; sched?: Sched
 }) {
   const supabase = createClient()
   const [lista, setLista] = useState<Deal[]>(deals)
@@ -141,6 +157,8 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
   const [showPForm, setShowPForm] = useState(false)
   const [mForm, setMForm] = useState<any>(novaReuniao())
   const [pForm, setPForm] = useState<any>(novaProposta())
+  const [offerId, setOfferId] = useState('')
+  const [offerSlots, setOfferSlots] = useState<{ date: string; time: string }[]>([{ date: '', time: '' }, { date: '', time: '' }, { date: '', time: '' }])
   const toggle = (k: string) => setOpen(p => ({ ...p, [k]: !p[k] }))
 
   // ── derivados de deals
@@ -157,10 +175,19 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
 
   // ── derivados de reuniões
   const agora = Date.now()
-  const proximasReun = listaM.filter(m => (m.status === 'confirmada' || m.status === 'aguardando' || m.status === 'sugerida') && (!m.start_at || new Date(m.start_at).getTime() >= agora - 3600000))
+  const SOLIC = ['detectada', 'aguardando', 'aguardando_info', 'sugerida']
+  const HIST = ['realizada', 'cancelada', 'ausente', 'recusada']
+  const solicitacoesReun = listaM.filter(m => SOLIC.includes(m.status))
+  const aguardandoEscolha = listaM.filter(m => m.status === 'aguardando_escolha')
+  const confirmadasReun = listaM.filter(m => m.status === 'confirmada')
+  const reagendadasReun = listaM.filter(m => m.status === 'reagendada')
+  const historicoReun = listaM.filter(m => HIST.includes(m.status))
   const realizadasReun = listaM.filter(m => m.status === 'realizada')
-  const reunMarcadas = listaM.filter(m => m.status === 'confirmada').length
-  const reunAguard = listaM.filter(m => m.status === 'aguardando').length
+  const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const reunHoje = [...confirmadasReun, ...reagendadasReun].filter(m => m.start_at && new Date(m.start_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) === hojeStr)
+  const proxReuniao = [...confirmadasReun, ...reagendadasReun].filter(m => m.start_at && new Date(m.start_at).getTime() >= agora - 3600000).sort((a, b) => (a.start_at || '').localeCompare(b.start_at || ''))[0]
+  const reunMarcadas = confirmadasReun.length + reagendadasReun.length
+  const reunAguard = solicitacoesReun.length
   const compareceu = realizadasReun.length
   const ausencias = listaM.filter(m => m.status === 'ausente').length
   const taxaComparec = (compareceu + ausencias) ? Math.round((compareceu / (compareceu + ausencias)) * 100) : null
@@ -252,6 +279,8 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
       contact_identifier: mForm.contact_identifier || null, assunto: mForm.assunto || null,
       responsavel: mForm.responsavel || null, canal: mForm.canal || null, origem: mForm.origem || 'WhatsApp',
       start_at, duracao_min: Number(mForm.duracao) || 30, status: mForm.status || 'aguardando',
+      tipo: mForm.tipo || null, modalidade: mForm.modalidade || null,
+      endereco: mForm.modalidade === 'presencial' ? (mForm.endereco || sched?.address || null) : null,
       meeting_url: mForm.meeting_url || null, provider: mForm.provider || null,
       observacoes: mForm.observacoes || null, proximo_passo: mForm.proximo_passo || null,
       deal_id: mForm.deal_id || null,
@@ -262,19 +291,28 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     setListaM(prev => [...prev, data as Meeting].sort((a, b) => (a.start_at || '').localeCompare(b.start_at || '')))
     setShowMForm(false); setMForm(novaReuniao())
   }
-  async function setMeetingStatus(id: string, status: string, patchExtra: any = {}) {
-    setBusy(id + status)
-    const patch = { status, updated_at: new Date().toISOString(), ...patchExtra }
-    const { error } = await supabase.from('meetings').update(patch).eq('id', id)
-    setBusy('')
-    if (error) { alert(error.message); return }
-    setListaM(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m))
+  async function meetingAcao(id: string, acao: string, payload: any = {}) {
+    setBusy(id + acao)
+    const res = await fetch('/api/painel/reuniao/acao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: id, acao, ...payload }) })
+    const data = await res.json().catch(() => ({})); setBusy('')
+    if (!res.ok) { alert(data.error || 'Erro ao processar a ação.'); return }
+    setListaM(prev => prev.map(m => m.id === id ? {
+      ...m, status: data.status ?? m.status,
+      ...(payload.start_at ? { start_at: payload.start_at } : {}),
+      ...(acao === 'oferecer_datas' ? { alternative_slots: payload.slots } : {}),
+    } : m))
+    if (data.sent && !data.sendOk) alert('Reunião atualizada, mas a mensagem ao cliente falhou: ' + (data.sendError || 'verifique a conexão do WhatsApp.'))
+    setOfferId('')
   }
   async function reagendar(m: Meeting) {
-    const data = prompt('Nova data (AAAA-MM-DD):', (m.start_at || '').slice(0, 10)); if (!data) return
-    const hora = prompt('Novo horário (HH:MM):', fmtTime(m.start_at)); if (!hora) return
-    const start_at = new Date(`${data}T${hora}:00-03:00`).toISOString()
-    setMeetingStatus(m.id, 'reagendada', { start_at })
+    const data = prompt('Nova data (AAAA-MM-DD):', (m.start_at || m.requested_date || '').slice(0, 10)); if (!data) return
+    const hora = prompt('Novo horário (HH:MM):', m.start_at ? fmtTime(m.start_at) : (m.requested_time || '09:00')); if (!hora) return
+    meetingAcao(m.id, 'reagendar', { start_at: new Date(`${data}T${hora}:00-03:00`).toISOString() })
+  }
+  function enviarOferta(id: string) {
+    const slots = offerSlots.filter(s => s.date)
+    if (!slots.length) { alert('Informe ao menos uma data alternativa.'); return }
+    meetingAcao(id, 'oferecer_datas', { slots })
   }
 
   // ──────────────── ações de dados (propostas)
@@ -419,11 +457,22 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     const meta = mMeta[m.status] ?? { label: m.status, cor: C.muted }
     const nome = m.empresa || m.contato_nome || 'Reunião'
     const conv = m.conversation_id || convMap[m.contact_identifier ?? ''] || ''
+    const solicitada = SOLIC.includes(m.status)
+    const dataSolic = m.requested_date ? `${fmtDate(m.requested_date)}${m.requested_time ? ` às ${m.requested_time}` : ''}` : (m.periodo || null)
     const info: [string, string | null][] = [
-      ['Contato', m.contato_nome], ['Data', fmtDate(m.start_at)], ['Horário', m.start_at ? fmtTime(m.start_at) : null],
-      ['Duração', m.duracao_min ? `${m.duracao_min} min` : null], ['Canal', m.canal], ['Responsável', m.responsavel],
-      ['Origem', m.origem], ['Assunto', m.assunto],
+      ['Contato', m.contato_nome],
+      ['Tipo', m.tipo],
+      ['Modalidade', m.modalidade ? (modLabel[m.modalidade] || m.modalidade) : null],
+      solicitada
+        ? ['Data solicitada', dataSolic]
+        : ['Data', m.start_at ? `${fmtDate(m.start_at)} às ${fmtTime(m.start_at)}` : null],
+      ['Duração', m.duracao_min ? `${m.duracao_min} min` : null],
+      ['Responsável', m.responsavel],
+      ['Canal', m.canal], ['Origem', m.origem],
+      [m.modalidade === 'presencial' ? 'Endereço' : 'Link', m.modalidade === 'presencial' ? m.endereco : m.meeting_url],
+      ['Assunto', m.assunto],
     ]
+    const offering = offerId === m.id
     return (
       <div style={{ background: C.deep, border: `1px solid color-mix(in oklch, ${meta.cor} 26%, var(--c-border))`, borderRadius: 12, padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -432,28 +481,58 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
             <Badge cor={meta.cor}>{meta.label}</Badge>
             {m.source === 'ai_sugerida' && <Badge cor={CYAN}>IA</Badge>}
           </div>
-          {m.start_at && <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint }}>{fmtDate(m.start_at)} · {fmtTime(m.start_at)}</span>}
+          {m.start_at && !solicitada && <span style={{ fontFamily: FONT.jb, fontSize: 10, color: C.faint }}>{fmtDate(m.start_at)} · {fmtTime(m.start_at)}</span>}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, marginBottom: (m.assunto || m.proximo_passo) ? 12 : 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, marginBottom: 12 }}>
           {info.filter(([, v]) => v).map(([k, v]) => (
             <div key={k}><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 3 }}>{k}</p><p style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white }}>{v}</p></div>
           ))}
         </div>
         {m.observacoes && <div style={{ marginBottom: 12 }}><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 4 }}>Observações</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.muted, lineHeight: 1.6, fontWeight: 300 }}>{m.observacoes}</p></div>}
+        {m.status === 'aguardando_escolha' && Array.isArray(m.alternative_slots) && m.alternative_slots.length > 0 && (
+          <div style={{ background: C.void, border: `1px solid color-mix(in oklch, ${CYAN} 28%, transparent)`, borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+            <p style={{ ...T.mono, color: CYAN, fontSize: 9, marginBottom: 6 }}>Datas oferecidas — aguardando o cliente</p>
+            {m.alternative_slots.map((s, i) => <p key={i} style={{ fontFamily: FONT.dm, fontSize: 13, color: C.white, fontWeight: 300 }}>• {s.date ? `${fmtDate(s.date)}${s.time ? ` às ${s.time}` : ''}` : '—'}</p>)}
+          </div>
+        )}
         {m.proximo_passo && (
           <div style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
             <p style={{ ...T.mono, color: 'oklch(80% 0.12 215)', fontSize: 9, marginBottom: 4 }}>Próximo passo</p>
             <p style={{ fontFamily: FONT.dm, fontSize: 13, color: C.white, fontWeight: 300 }}>{m.proximo_passo}</p>
           </div>
         )}
+
+        {offering && (
+          <div style={{ background: C.void, border: `1px solid ${C.borderHi}`, borderRadius: 8, padding: 14, marginBottom: 14 }}>
+            <p style={{ ...T.mono, color: CYAN, fontSize: 9, marginBottom: 10 }}>Oferecer novas datas (até 3) — a IA envia as opções ao cliente</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {offerSlots.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8 }}>
+                  <input className="field" type="date" value={s.date} onChange={e => setOfferSlots(prev => prev.map((x, j) => j === i ? { ...x, date: e.target.value } : x))} />
+                  <input className="field" type="time" value={s.time} onChange={e => setOfferSlots(prev => prev.map((x, j) => j === i ? { ...x, time: e.target.value } : x))} style={{ width: 130 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={() => enviarOferta(m.id)} disabled={busy === m.id + 'oferecer_datas'} className="btn-primary" style={{ fontSize: 12 }}>{busy === m.id + 'oferecer_datas' ? 'Enviando…' : 'Enviar opções ao cliente'}</button>
+              <button onClick={() => setOfferId('')} className="btn-ghost" style={{ fontSize: 12 }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           {conv && <a href={`/painel/conversas/${conv}`} style={linkSt}>Ver conversa</a>}
           {m.meeting_url && <a href={m.meeting_url} target="_blank" rel="noreferrer" style={{ ...linkSt, color: CYAN }}>Abrir reunião</a>}
-          {(m.status === 'aguardando' || m.status === 'sugerida') && <button onClick={() => setMeetingStatus(m.id, 'confirmada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Confirmar</button>}
-          {m.status !== 'realizada' && m.status !== 'cancelada' && <button onClick={() => reagendar(m)} disabled={!!busy} style={{ ...linkSt, color: CYAN }}>Reagendar</button>}
-          {m.status !== 'realizada' && <button onClick={() => setMeetingStatus(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Marcar como realizada</button>}
-          {schemaReady && <button onClick={() => prefillProposta(m)} style={{ ...linkSt, color: C.blueB }}>Criar proposta</button>}
-          {m.status !== 'cancelada' && <button onClick={() => setMeetingStatus(m.id, 'cancelada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Cancelar</button>}
+          {['detectada', 'aguardando', 'aguardando_info', 'sugerida', 'aguardando_escolha', 'reagendada'].includes(m.status) &&
+            <button onClick={() => meetingAcao(m.id, 'confirmar')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>{busy === m.id + 'confirmar' ? 'Confirmando…' : 'Confirmar horário'}</button>}
+          {!['realizada', 'cancelada', 'recusada'].includes(m.status) &&
+            <button onClick={() => { setOfferId(offering ? '' : m.id); if (!offering) setOpen(p => ({ ...p, agenda: true })) }} style={{ ...linkSt, color: CYAN }}>Oferecer nova data</button>}
+          {!['realizada', 'cancelada', 'recusada'].includes(m.status) && <button onClick={() => reagendar(m)} disabled={!!busy} style={{ ...linkSt, color: CYAN }}>Reagendar</button>}
+          {['confirmada', 'reagendada'].includes(m.status) && <button onClick={() => meetingAcao(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Marcar como realizada</button>}
+          {['confirmada', 'reagendada'].includes(m.status) && <button onClick={() => meetingAcao(m.id, 'ausencia')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Marcar ausência</button>}
+          {solicitada && <button onClick={() => meetingAcao(m.id, 'recusar')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Recusar</button>}
+          {schemaReady && <button onClick={() => prefillProposta(m)} style={{ ...linkSt, color: C.blueB }}>Gerar proposta</button>}
+          {!['cancelada', 'recusada', 'realizada'].includes(m.status) && <button onClick={() => meetingAcao(m.id, 'cancelar', { notificar: true })} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Cancelar</button>}
         </div>
       </div>
     )
@@ -620,11 +699,11 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
             <EmptyMeetings onCreate={() => setShowMForm(true)} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <MeetingGroup titulo="Próximas reuniões" cor="var(--c-green)" items={proximasReun} render={m => <MeetingCard key={m.id} m={m} />} />
-              <MeetingGroup titulo="Aguardando confirmação" cor="var(--c-yellow)" items={listaM.filter(m => m.status === 'aguardando' && !proximasReun.includes(m))} render={m => <MeetingCard key={m.id} m={m} />} />
-              <MeetingGroup titulo="Realizadas" cor="var(--c-green)" items={realizadasReun} render={m => <MeetingCard key={m.id} m={m} />} />
-              <MeetingGroup titulo="Reagendadas" cor={CYAN} items={listaM.filter(m => m.status === 'reagendada')} render={m => <MeetingCard key={m.id} m={m} />} />
-              <MeetingGroup titulo="Canceladas" cor="var(--c-muted)" items={listaM.filter(m => m.status === 'cancelada' || m.status === 'ausente')} render={m => <MeetingCard key={m.id} m={m} />} />
+              <MeetingGroup titulo="Solicitações pendentes" cor="var(--c-yellow)" items={solicitacoesReun} render={m => <MeetingCard key={m.id} m={m} />} />
+              <MeetingGroup titulo="Aguardando escolha do cliente" cor={CYAN} items={aguardandoEscolha} render={m => <MeetingCard key={m.id} m={m} />} />
+              <MeetingGroup titulo="Reuniões confirmadas" cor="var(--c-green)" items={confirmadasReun} render={m => <MeetingCard key={m.id} m={m} />} />
+              <MeetingGroup titulo="Reagendamentos" cor={CYAN} items={reagendadasReun} render={m => <MeetingCard key={m.id} m={m} />} />
+              <MeetingGroup titulo="Histórico de reuniões" cor="var(--c-muted)" items={historicoReun} render={m => <MeetingCard key={m.id} m={m} />} />
             </div>
           )}
         </Section>
@@ -682,6 +761,28 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
 
       {/* DIREITA */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+        {/* Agenda de hoje */}
+        <div style={CARD}>
+          <h2 style={sideTitle}>Agenda de hoje</h2>
+          {proxReuniao ? (
+            <div style={{ background: C.void, border: `1px solid color-mix(in oklch, ${CYAN} 25%, transparent)`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+              <span style={{ ...T.mono, fontSize: 8, color: CYAN }}>Próxima reunião</span>
+              <p style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white, fontWeight: 500, marginTop: 4 }}>{proxReuniao.empresa || proxReuniao.contato_nome || 'Reunião'}</p>
+              <p style={{ fontFamily: FONT.jb, fontSize: 11, color: C.muted, marginTop: 2 }}>{proxReuniao.start_at ? `${fmtDate(proxReuniao.start_at)} às ${fmtTime(proxReuniao.start_at)}` : 'Sem data'}{proxReuniao.canal ? ` · ${proxReuniao.canal}` : ''}</p>
+            </div>
+          ) : (
+            <p style={{ fontFamily: FONT.dm, fontSize: 13, color: C.muted, fontWeight: 300, marginBottom: 12 }}>Nenhuma reunião marcada no momento.</p>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[['Hoje', reunHoje.length, C.white], ['Aguardando', reunAguard, reunAguard > 0 ? 'var(--c-yellow)' : C.white], ['Escolha cliente', aguardandoEscolha.length, aguardandoEscolha.length > 0 ? CYAN : C.white]].map(([l, v, c]) => (
+              <div key={l as string} style={{ flex: 1, background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px' }}>
+                <span style={{ ...T.mono, fontSize: 8, color: C.faint }}>{l}</span>
+                <p style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 18, color: c as string, lineHeight: 1.1, marginTop: 3 }}>{v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div style={CARD}>
           <h2 style={sideTitle}>Resumo comercial</h2>
           {resumoItems.map(([t, c], i) => (
@@ -802,11 +903,16 @@ function MeetingForm({ form, setForm, onSave, busy, onCancel }: { form: any; set
         <Field label="Duração (min)"><input className="field" type="number" value={form.duracao} onChange={e => set('duracao', e.target.value)} /></Field>
       </Row>
       <Row>
-        <Field label="Canal"><input className="field" placeholder="Google Meet, Zoom…" value={form.canal} onChange={e => set('canal', e.target.value)} /></Field>
-        <Field label="Responsável"><input className="field" value={form.responsavel} onChange={e => set('responsavel', e.target.value)} /></Field>
+        <Field label="Tipo"><select className="field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>{[['reuniao', 'Reunião comercial'], ['visita', 'Visita presencial'], ['call', 'Call / ligação'], ['demo', 'Demonstração']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+        <Field label="Modalidade"><select className="field" value={form.modalidade} onChange={e => set('modalidade', e.target.value)}><option value="">—</option>{[['presencial', 'Presencial'], ['online', 'Online'], ['telefone', 'Telefone']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
         <Field label="Status"><select className="field" value={form.status} onChange={e => set('status', e.target.value)}>{[['aguardando', 'Aguardando confirmação'], ['confirmada', 'Confirmada'], ['realizada', 'Realizada']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
       </Row>
+      <Row>
+        <Field label="Canal"><input className="field" placeholder="Google Meet, Zoom…" value={form.canal} onChange={e => set('canal', e.target.value)} /></Field>
+        <Field label="Responsável"><input className="field" value={form.responsavel} onChange={e => set('responsavel', e.target.value)} /></Field>
+      </Row>
       <Field label="Assunto"><input className="field" value={form.assunto} onChange={e => set('assunto', e.target.value)} /></Field>
+      {form.modalidade === 'presencial' && <Field label="Endereço"><input className="field" value={form.endereco} onChange={e => set('endereco', e.target.value)} placeholder="Rua Exemplo, 123" /></Field>}
       <Field label="Link da reunião (opcional)"><input className="field" placeholder="https://meet.google.com/…" value={form.meeting_url} onChange={e => set('meeting_url', e.target.value)} /></Field>
       <Field label="Próximo passo"><input className="field" value={form.proximo_passo} onChange={e => set('proximo_passo', e.target.value)} /></Field>
       <Field label="Observações"><textarea className="field" rows={2} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} /></Field>
@@ -845,7 +951,7 @@ function ProposalForm({ form, setForm, onSave, busy, onCancel }: { form: any; se
 }
 
 function novaReuniao() {
-  return { empresa: '', contato: '', contact_identifier: '', assunto: '', data: '', hora: '', duracao: '30', canal: '', responsavel: '', origem: 'WhatsApp', status: 'aguardando', meeting_url: '', provider: '', observacoes: '', proximo_passo: '', deal_id: null }
+  return { empresa: '', contato: '', contact_identifier: '', assunto: '', data: '', hora: '', duracao: '30', canal: '', responsavel: '', origem: 'WhatsApp', status: 'aguardando', tipo: 'reuniao', modalidade: '', endereco: '', meeting_url: '', provider: '', observacoes: '', proximo_passo: '', deal_id: null }
 }
 function novaProposta() {
   return { empresa: '', contato: '', contact_identifier: '', produto: '', valor: '', validade: '', responsavel: '', conteudo: '', status: 'rascunho', deal_id: null }

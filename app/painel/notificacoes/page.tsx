@@ -86,8 +86,10 @@ export default async function NotificacoesPage() {
       notifs.push({ id: `meet-1h-${m.id}`, tipo: 'venda', prioridade: 'alta', title: 'Reunião em 1 hora', descricao: `Você tem uma reunião com ${nomeM(m)} em menos de 1 hora.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Reunião próxima', ts: m.start_at, href: '/painel/negocios' })
     } else if (m.status === 'confirmada') {
       notifs.push({ id: `meet-ok-${m.id}`, tipo: 'venda', prioridade: 'info', title: 'Reunião marcada', descricao: `Reunião confirmada com ${nomeM(m)}.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Reunião confirmada', ts: m.start_at || m.created_at, href: '/painel/negocios' })
-    } else if (m.status === 'aguardando') {
-      notifs.push({ id: `meet-wait-${m.id}`, tipo: 'venda', prioridade: 'media', title: 'Reunião aguardando confirmação', descricao: `A reunião com ${nomeM(m)} ainda precisa ser confirmada.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Aguardando confirmação', ts: m.created_at || m.start_at, href: '/painel/negocios' })
+    } else if (m.status === 'aguardando' || m.status === 'detectada' || m.status === 'sugerida' || m.status === 'aguardando_info') {
+      notifs.push({ id: `meet-wait-${m.id}`, tipo: 'venda', prioridade: 'media', title: 'Nova solicitação de reunião', descricao: `${nomeM(m)} demonstrou interesse em agendar. Confirme o horário ou ofereça novas datas.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Aguardando confirmação da empresa', ts: m.created_at || m.start_at, href: '/painel/negocios' })
+    } else if (m.status === 'aguardando_escolha') {
+      notifs.push({ id: `meet-choice-${m.id}`, tipo: 'venda', prioridade: 'media', title: 'Aguardando escolha do cliente', descricao: `Você ofereceu novas datas para ${nomeM(m)}. Aguardando a resposta dele.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Datas oferecidas', ts: m.created_at || m.start_at, href: '/painel/negocios' })
     } else if (m.status === 'cancelada') {
       notifs.push({ id: `meet-cancel-${m.id}`, tipo: 'venda', prioridade: 'baixa', title: 'Reunião cancelada', descricao: `A reunião com ${nomeM(m)} foi cancelada.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Cancelada', ts: m.start_at || m.created_at, href: '/painel/negocios' })
     } else if (m.status === 'ausente') {
