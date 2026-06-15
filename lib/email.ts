@@ -23,13 +23,17 @@ const COL = {
 }
 const FONT = "'Space Grotesk',-apple-system,Segoe UI,Roboto,Arial,sans-serif"
 
-export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+export interface EmailAttachment { filename: string; content: string; content_id?: string }
+
+export async function sendEmail({ to, subject, html, attachments }: { to: string; subject: string; html: string; attachments?: EmailAttachment[] }) {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { ok: false, error: 'RESEND_API_KEY não configurada' }
+  const payload: Record<string, unknown> = { from: FROM, to, subject, html }
+  if (attachments?.length) payload.attachments = attachments
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const txt = await res.text()
@@ -105,6 +109,31 @@ export function onboardingEmailHtml(opts: {
       Dúvidas? Fale com a gente em <a href="mailto:contato@bonsync.com.br" style="color:${COL.blueSoft};text-decoration:none;">contato@bonsync.com.br</a>.
     </p>`
   return emailShell(inner, `Sua conta na Bonsync está pronta — acesso e conexão do WhatsApp.`)
+}
+
+/** E-mail com o QR Code para conectar o WhatsApp (cid: "qrcode") */
+export function qrEmailHtml(opts: { companyName: string }) {
+  const inner = `
+    <h1 style="font-size:21px;color:${COL.white};margin:0 0 8px;font-weight:700;">Conecte seu WhatsApp 📱</h1>
+    <p style="font-size:15px;color:${COL.muted};line-height:1.6;margin:0 0 20px;">
+      Olá, ${opts.companyName}! Para ativar seu atendimento automático, conecte seu WhatsApp escaneando o código abaixo.
+    </p>
+    <div style="background:${COL.panel};border:1px solid ${COL.border};border-radius:10px;padding:18px;margin-bottom:20px;">
+      <p style="font-size:11px;color:${COL.blueSoft};text-transform:uppercase;letter-spacing:.08em;margin:0 0 12px;">Como conectar</p>
+      <ol style="margin:0;padding-left:18px;font-size:14px;color:${COL.white};line-height:1.8;">
+        <li>Abra o <b>WhatsApp</b> no seu celular.</li>
+        <li>Toque em <b>Aparelhos conectados → Conectar um aparelho</b>.</li>
+        <li>Aponte a câmera para o QR Code abaixo.</li>
+      </ol>
+    </div>
+    <div style="text-align:center;margin-bottom:18px;">
+      <img src="cid:qrcode" alt="QR Code do WhatsApp" width="240" height="240" style="display:inline-block;background:#ffffff;border-radius:12px;padding:12px;" />
+      <p style="font-size:12px;color:${COL.faint};margin:12px 0 0;">O QR Code anexo também está disponível como imagem nesta mensagem.</p>
+    </div>
+    <p style="font-size:13px;color:${COL.faint};line-height:1.6;margin:0;">
+      ⏱️ <b style="color:${COL.muted};">Este QR Code tem validade limitada.</b> Se expirar, peça um novo à nossa equipe.
+    </p>`
+  return emailShell(inner, 'Seu QR Code para conectar o WhatsApp na Bonsync.')
 }
 
 /** E-mail de resumo automático (digest) */

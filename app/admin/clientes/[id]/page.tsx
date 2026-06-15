@@ -5,6 +5,7 @@ import { DeleteButton } from '@/components/DeleteButton'
 import { ResetPasswordButton } from '@/components/ResetPasswordButton'
 import { ClientActiveToggle } from '@/components/ClientActiveToggle'
 import { PaymentsManager } from '@/components/PaymentsManager'
+import { AdminWhatsAppSection } from '@/components/AdminWhatsAppSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,9 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      {/* Conexão WhatsApp — somente no Painel Admin */}
+      <AdminWhatsAppSection clientId={id} clientEmail={cliente.email ?? null} lastConnection={(cliente as any).whatsapp_connected_at ?? null} />
 
       {/* Assinatura / cobrança */}
       {sub && (
