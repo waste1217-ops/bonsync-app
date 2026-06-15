@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { C, T, CARD, FONT } from '@/lib/styles'
+import { ConnectWhatsApp } from '@/components/ConnectWhatsApp'
 
 function slugify(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -58,7 +59,9 @@ export default function NovoClientePage() {
     } catch { emailOk = false }
 
     setLoading(false)
-    setDone({ connectUrl, instancia: instCriada, emailOk })
+    // Mesmo se a criação da instância tropeçar, passamos o nome pretendido para
+    // o painel de QR tentar conectar/gerar o código (com opção de tentar de novo).
+    setDone({ connectUrl, instancia: instCriada || (criarInstancia && instanciaFinal ? instanciaFinal : null), emailOk })
   }
 
   function copiar() {
@@ -96,12 +99,15 @@ export default function NovoClientePage() {
         </div>
 
         {done.instancia && (
-          <div style={{ ...CARD, marginBottom: 16, border: `1px solid ${C.borderHi}` }}>
-            <p style={{ ...T.mono, color: C.muted, marginBottom: 8 }}>Conectar o WhatsApp ({done.instancia})</p>
-            {done.connectUrl ? (
-              <>
+          <div style={{ marginBottom: 16 }}>
+            {/* QR Code ao vivo — abre automaticamente após criar o cliente */}
+            <ConnectWhatsApp instance={done.instancia} />
+
+            {done.connectUrl && (
+              <div style={{ ...CARD, marginTop: 12 }}>
+                <p style={{ ...T.mono, color: C.muted, marginBottom: 8 }}>Ou envie este link ao cliente</p>
                 <p style={{ ...T.sub, fontSize: 13, marginBottom: 12 }}>
-                  Envie este link ao cliente. Ele abre, escaneia o QR (que se renova sozinho) e pronto.
+                  Ele abre, escaneia o QR (que se renova sozinho) e pronto — sem precisar de você.
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input className="field" readOnly value={done.connectUrl} style={{ flex: 1, fontSize: 12 }} />
@@ -109,9 +115,7 @@ export default function NovoClientePage() {
                     {copiado ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
-              </>
-            ) : (
-              <p style={{ ...T.sub, fontSize: 13 }}>Instância criada, mas não foi possível gerar o link. Use a página de status para conectar.</p>
+              </div>
             )}
           </div>
         )}

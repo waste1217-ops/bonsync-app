@@ -5,6 +5,7 @@ import { C, T, L, CARD, CARD_HI, TABLE, FONT, badgeStyle, agentStatusVariant, ag
 import { AgentToggle } from './AgentToggle'
 import { DeleteButton } from '@/components/DeleteButton'
 import { DuplicateAgentButton } from '@/components/DuplicateAgentButton'
+import { ConnectButton } from '@/components/ConnectWhatsApp'
 import { SaveAsTemplateButton } from '@/components/SaveAsTemplateButton'
 import { KnowledgeManager } from '@/components/KnowledgeManager'
 import { sumTokens, estimateCostBRL, fmtTokens, fmtBRL } from '@/lib/usage'
@@ -162,6 +163,7 @@ export default async function AgenteDetailPage({ params }: { params: Promise<{ i
           </div>
         )}
         <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {agent.config?.whatsapp_instance && <ConnectButton instance={agent.config.whatsapp_instance} />}
           <a href={`/admin/agentes/${id}/editar`} className="btn-ghost" style={{ fontSize: 12, padding: '9px 18px' }}>
             Editar configuração
           </a>
