@@ -84,6 +84,19 @@ export default async function PainelPage() {
     topTermos = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t)
   }
 
+  // ── Agenda comercial (reuniões) — tolerante caso a tabela ainda não exista ──
+  const fimHoje = `${nowSp}T03:00:00.000Z`
+  const fimHojeMs = new Date(fimHoje).getTime() + 86400000
+  const mRes = await supabase.from('meetings')
+    .select('empresa, contato_nome, start_at, status, canal')
+    .eq('agent_id', aid).neq('status', 'cancelada')
+    .order('start_at', { ascending: true })
+  const meetings = (mRes.error ? [] : mRes.data ?? [])
+  const agoraMs = Date.now()
+  const proxReuniao = meetings.find(m => m.start_at && new Date(m.start_at).getTime() >= agoraMs - 3600000 && m.status !== 'realizada')
+  const reunHoje = meetings.filter(m => m.start_at && new Date(m.start_at).getTime() >= new Date(fimHoje).getTime() && new Date(m.start_at).getTime() < fimHojeMs && m.status !== 'realizada').length
+  const reunAguard = meetings.filter(m => m.status === 'aguardando').length
+
   // ── Resumo de hoje ──
   const plural = (n: number, s: string, p: string) => `${n} ${n === 1 ? s : p}`
   const statusFrase = agent.status === 'active'
@@ -128,6 +141,7 @@ export default async function PainelPage() {
   if (abertas > 0) atencao.push({ txt: `${plural(abertas, 'conversa está em aberto', 'conversas estão em aberto')}`, cor: 'var(--c-yellow)', href: '/painel/conversas' })
   if ((escalated ?? 0) > 0) atencao.push({ txt: `${plural(escalated ?? 0, 'conversa foi passada', 'conversas foram passadas')} para humano`, cor: 'var(--c-yellow)', href: '/painel/conversas' })
   if (pendentes > 0) atencao.push({ txt: `${plural(pendentes, 'venda precisa', 'vendas precisam')} de confirmação`, cor: ciano, href: '/painel/negocios' })
+  if (reunAguard > 0) atencao.push({ txt: `${plural(reunAguard, 'reunião aguarda', 'reuniões aguardam')} confirmação`, cor: 'oklch(80% 0.16 215)', href: '/painel/negocios' })
   atencao.push(agent.status === 'active'
     ? { txt: 'Agente ativo no WhatsApp', cor: 'var(--c-green)', href: '/painel/status' }
     : agent.status === 'paused'
@@ -266,6 +280,34 @@ export default async function PainelPage() {
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: a.cor, flexShrink: 0 }} />
                   <span style={{ fontFamily: 'var(--font-dm)', fontSize: 13, color: 'var(--c-muted)', fontWeight: 300 }}>{a.txt}</span>
                 </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Agenda comercial */}
+          <div style={CARD}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h2 style={{ ...sideTitle, marginBottom: 0 }}>Agenda comercial</h2>
+              <a href="/painel/negocios" style={{ ...S.mono, color: 'var(--c-blue-b)', fontSize: 10 }}>Ver tudo →</a>
+            </div>
+            {proxReuniao ? (
+              <div style={{ background: 'var(--c-void)', border: '1px solid oklch(70% 0.16 220 / 0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                <span style={{ ...S.mono, fontSize: 8, color: 'oklch(80% 0.16 215)' }}>Próxima reunião</span>
+                <p style={{ fontFamily: 'var(--font-dm)', fontSize: 14, color: 'var(--c-white)', fontWeight: 500, marginTop: 4 }}>{proxReuniao.empresa || proxReuniao.contato_nome || 'Reunião'}</p>
+                <p style={{ fontFamily: 'var(--font-jb)', fontSize: 11, color: 'var(--c-muted)', marginTop: 2 }}>
+                  {proxReuniao.start_at ? new Date(proxReuniao.start_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Sem data'}
+                  {proxReuniao.canal ? ` · ${proxReuniao.canal}` : ''}
+                </p>
+              </div>
+            ) : (
+              <p style={{ fontFamily: 'var(--font-dm)', fontSize: 13, color: 'var(--c-muted)', fontWeight: 300, marginBottom: 12 }}>Nenhuma reunião marcada no momento.</p>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['Hoje', reunHoje, 'var(--c-white)'], ['Aguardando', reunAguard, reunAguard > 0 ? 'var(--c-yellow)' : 'var(--c-white)']].map(([l, v, c]) => (
+                <div key={l as string} style={{ flex: 1, background: 'var(--c-void)', border: '1px solid var(--c-border)', borderRadius: 8, padding: '8px 12px' }}>
+                  <span style={{ ...S.mono, fontSize: 8, color: 'var(--c-faint)' }}>{l}</span>
+                  <p style={{ fontFamily: 'var(--font-space)', fontWeight: 700, fontSize: 18, color: c as string, lineHeight: 1.1, marginTop: 3 }}>{v}</p>
+                </div>
               ))}
             </div>
           </div>

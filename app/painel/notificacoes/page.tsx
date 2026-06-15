@@ -69,6 +69,39 @@ export default async function NotificacoesPage() {
     })
   }
 
+  // ── Reuniões e propostas (tolerante: tabelas podem não existir ainda) ──
+  const [mRes, pRes] = await Promise.all([
+    supabase.from('meetings').select('id, empresa, contato_nome, contact_identifier, start_at, status, canal, created_at').eq('agent_id', agentId).order('start_at', { ascending: true }),
+    supabase.from('proposals').select('id, empresa, contato_nome, contact_identifier, status, sent_at, created_at').eq('agent_id', agentId).in('status', ['enviada', 'visualizada', 'em_negociacao']),
+  ])
+  const meetings = mRes.error ? [] : mRes.data ?? []
+  const propostas = pRes.error ? [] : pRes.data ?? []
+  const agoraMs = Date.now()
+  const nomeM = (m: any) => m.empresa || m.contato_nome || formatContact(m.contact_identifier)
+
+  for (const m of meetings) {
+    const startMs = m.start_at ? new Date(m.start_at).getTime() : null
+    const emUmaHora = startMs !== null && startMs - agoraMs > 0 && startMs - agoraMs <= 70 * 60000
+    if (m.status === 'confirmada' && emUmaHora) {
+      notifs.push({ id: `meet-1h-${m.id}`, tipo: 'venda', prioridade: 'alta', title: 'Reunião em 1 hora', descricao: `Você tem uma reunião com ${nomeM(m)} em menos de 1 hora.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Reunião próxima', ts: m.start_at, href: '/painel/negocios' })
+    } else if (m.status === 'confirmada') {
+      notifs.push({ id: `meet-ok-${m.id}`, tipo: 'venda', prioridade: 'info', title: 'Reunião marcada', descricao: `Reunião confirmada com ${nomeM(m)}.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Reunião confirmada', ts: m.start_at || m.created_at, href: '/painel/negocios' })
+    } else if (m.status === 'aguardando') {
+      notifs.push({ id: `meet-wait-${m.id}`, tipo: 'venda', prioridade: 'media', title: 'Reunião aguardando confirmação', descricao: `A reunião com ${nomeM(m)} ainda precisa ser confirmada.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Aguardando confirmação', ts: m.created_at || m.start_at, href: '/painel/negocios' })
+    } else if (m.status === 'cancelada') {
+      notifs.push({ id: `meet-cancel-${m.id}`, tipo: 'venda', prioridade: 'baixa', title: 'Reunião cancelada', descricao: `A reunião com ${nomeM(m)} foi cancelada.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Cancelada', ts: m.start_at || m.created_at, href: '/painel/negocios' })
+    } else if (m.status === 'ausente') {
+      notifs.push({ id: `meet-noshow-${m.id}`, tipo: 'venda', prioridade: 'media', title: 'Cliente não compareceu', descricao: `${nomeM(m)} não compareceu à reunião. Vale reagendar.`, contato: nomeM(m), canal: m.canal || 'WhatsApp', motivo: 'Ausência', ts: m.start_at || m.created_at, href: '/painel/negocios' })
+    }
+  }
+
+  for (const p of propostas) {
+    const dias = Math.floor((agoraMs - new Date(p.sent_at || p.created_at).getTime()) / 86400000)
+    if (dias >= 3) {
+      notifs.push({ id: `prop-fup-${p.id}`, tipo: 'venda', prioridade: 'media', title: 'Proposta aguardando follow-up', descricao: `A proposta para ${p.empresa || p.contato_nome || 'cliente'} está sem resposta há ${dias} dias.`, contato: p.empresa || p.contato_nome || formatContact(p.contact_identifier), canal: 'WhatsApp', motivo: 'Follow-up de proposta', ts: p.sent_at || p.created_at, href: '/painel/negocios' })
+    }
+  }
+
   notifs.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
 
   return (
