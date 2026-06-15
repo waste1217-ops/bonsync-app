@@ -13,40 +13,68 @@ const headers = {
 }
 
 /**
- * Normaliza o JID para número puro.
- * Evolution API v2 aceita só o número (sem @s.whatsapp.net ou @lid).
- * @lid é o formato multi-device novo do WhatsApp — não funciona para envio,
- * sempre converte para o número limpo.
+ * Resolve o alvo de envio a partir de um identificador de contato.
+ * - Contatos @lid: o JID NÃO é telefone; o Evolution roteia pelo próprio
+ *   "<id>@lid" (mesma lógica do agente da VPS). Mantemos o @lid.
+ * - Números: remove formatação (espaços, traços, parênteses, +) e, para
+ *   Brasil, adiciona o 55 quando vier só com DDD + número.
+ * Retorna { ok:false, code } para vazio/indefinido/ID inválido.
  */
-function normalizeJid(jid: string): string {
-  return jid
-    .replace('@s.whatsapp.net', '')
-    .replace('@lid', '')
-    .replace('@g.us', '')
-    .split(':')[0]  // remove sufixo de dispositivo ex: "5511999@c.us:1"
-    .trim()
-}
+export function toSendTarget(raw?: string | null):
+  | { ok: true; target: string; original: string }
+  | { ok: false; code: 'NO_PHONE' | 'INVALID_NUMBER'; original: string } {
+  const original = String(raw ?? '')
+  const s = original.trim()
+  if (!s || s === 'undefined' || s === 'null') return { ok: false, code: 'NO_PHONE', original }
 
-/** Envia mensagem de texto — Evolution API v2 */
-export async function sendText(instance: string, to: string, text: string) {
-  const number = normalizeJid(to)
-
-  const res = await fetch(`${BASE_URL}/message/sendText/${instance}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      number,
-      text,          // v2: campo direto "text" (v1 usava textMessage: { text })
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    console.error(`[evolution] Erro ao enviar para ${number}:`, res.status, err)
-    throw new Error(`Evolution API ${res.status}: ${err}`)
+  if (s.includes('@lid')) {
+    const id = s.split('@')[0].split(':')[0].replace(/\D/g, '')
+    if (id.length < 8) return { ok: false, code: 'INVALID_NUMBER', original }
+    return { ok: true, target: `${id}@lid`, original }
   }
 
-  return res.json()
+  let d = s.replace('@s.whatsapp.net', '').replace('@g.us', '').split(':')[0].replace(/\D/g, '')
+  if (!d) return { ok: false, code: 'INVALID_NUMBER', original }
+  if (!d.startsWith('55') && (d.length === 10 || d.length === 11)) d = '55' + d  // Brasil: DDD + número
+  if (d.length < 11 || d.length > 15) return { ok: false, code: 'INVALID_NUMBER', original }
+  return { ok: true, target: d, original }
+}
+
+/** Normaliza um JID para uso interno (matching de contato). */
+function normalizeJid(jid: string): string {
+  const r = toSendTarget(jid)
+  return r.ok ? r.target : ''
+}
+
+/**
+ * Envia mensagem de texto — Evolution API v2.
+ * Loga número original, normalizado, endpoint, status e resposta (sem o texto).
+ * Lança Error com marcador para o chamador mapear a causa:
+ *  - "SEND_TARGET:NO_PHONE" / "SEND_TARGET:INVALID_NUMBER"
+ *  - "Evolution API <status>: <body>" / "Evolution API 0: network"
+ */
+export async function sendText(instance: string, to: string, text: string) {
+  const endpoint = `${BASE_URL}/message/sendText/${instance}`
+  const r = toSendTarget(to)
+  if (!r.ok) {
+    console.error('[evolution] alvo inválido', JSON.stringify({ original: r.original, code: r.code, instance }))
+    throw new Error(`SEND_TARGET:${r.code}`)
+  }
+  const number = r.target
+  console.log('[evolution] sendText →', JSON.stringify({ original: r.original, target: number, endpoint, instance, textLen: text.length }))
+
+  let res: Response
+  try {
+    res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ number, text }) })
+  } catch (e: any) {
+    console.error('[evolution] sem conexão com a API:', e?.message)
+    throw new Error('Evolution API 0: network')
+  }
+
+  const bodyText = await res.text()
+  console.log('[evolution] resposta', JSON.stringify({ target: number, status: res.status, body: bodyText.slice(0, 500) }))
+  if (!res.ok) throw new Error(`Evolution API ${res.status}: ${bodyText}`)
+  try { return JSON.parse(bodyText) } catch { return {} }
 }
 
 /** Tipos do payload de webhook da Evolution API v2 */

@@ -159,7 +159,14 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
   const [pForm, setPForm] = useState<any>(novaProposta())
   const [offerId, setOfferId] = useState('')
   const [offerSlots, setOfferSlots] = useState<{ date: string; time: string }[]>([{ date: '', time: '' }, { date: '', time: '' }, { date: '', time: '' }])
+  const [toasts, setToasts] = useState<{ id: number; type: 'ok' | 'err' | 'info'; text: string }[]>([])
+  const [sendFail, setSendFail] = useState<Record<string, { messageId?: string; error: string }>>({})
   const toggle = (k: string) => setOpen(p => ({ ...p, [k]: !p[k] }))
+  function toast(text: string, type: 'ok' | 'err' | 'info' = 'info') {
+    const id = Date.now() + Math.random()
+    setToasts(t => [...t, { id, type, text }])
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 6000)
+  }
 
   // ── derivados de deals
   const confirmados = lista.filter(d => d.status === 'confirmed')
@@ -249,7 +256,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     const patch: any = { status, confirmed_at: status === 'confirmed' ? new Date().toISOString() : null }
     const { error } = await supabase.from('deals').update(patch).eq('id', id)
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setLista(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d))
   }
   function abrirEdit(d: Deal) { setEditId(d.id); setEdit({ empresa: d.empresa || '', produto: d.produto || '', volume: d.volume || '', valor: d.valor || '', status: d.status, resumo: d.resumo || '' }) }
@@ -258,20 +265,20 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     const patch: any = { ...edit, confirmed_at: edit.status === 'confirmed' ? new Date().toISOString() : null }
     const { error } = await supabase.from('deals').update(patch).eq('id', id)
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setLista(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d)); setEditId('')
   }
   async function gerarProposta(id: string) {
     setBusy(id + 'prop')
     const res = await fetch('/api/painel/gerar-proposta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deal_id: id }) })
     const data = await res.json(); setBusy('')
-    if (!res.ok) { alert(data.error || 'Erro.'); return }
+    if (!res.ok) { toast(data.error || 'Erro ao gerar proposta.', 'err'); return }
     setPropostas(prev => ({ ...prev, [id]: data.proposta }))
   }
 
   // ──────────────── ações de dados (reuniões)
   async function criarReuniao() {
-    if (!schemaReady) { alert('Rode o SQL supabase/02_negocios.sql para ativar reuniões.'); return }
+    if (!schemaReady) { toast('Rode o SQL supabase/02_negocios.sql para ativar reuniões.', 'err'); return }
     setBusy('mnew')
     const start_at = mForm.data && mForm.hora ? new Date(`${mForm.data}T${mForm.hora}:00-03:00`).toISOString() : null
     const row: any = {
@@ -287,22 +294,49 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     }
     const { data, error } = await supabase.from('meetings').insert(row).select('*').single()
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setListaM(prev => [...prev, data as Meeting].sort((a, b) => (a.start_at || '').localeCompare(b.start_at || '')))
     setShowMForm(false); setMForm(novaReuniao())
   }
   async function meetingAcao(id: string, acao: string, payload: any = {}) {
     setBusy(id + acao)
-    const res = await fetch('/api/painel/reuniao/acao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: id, acao, ...payload }) })
-    const data = await res.json().catch(() => ({})); setBusy('')
-    if (!res.ok) { alert(data.error || 'Erro ao processar a ação.'); return }
+    let res: Response, data: any
+    try {
+      res = await fetch('/api/painel/reuniao/acao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meeting_id: id, acao, ...payload }) })
+      data = await res.json().catch(() => ({}))
+    } catch { setBusy(''); toast('Falha de conexão ao processar a ação.', 'err'); return }
+    setBusy('')
+    if (!res.ok) { toast(data.error || 'Erro ao processar a ação.', 'err'); return }
     setListaM(prev => prev.map(m => m.id === id ? {
       ...m, status: data.status ?? m.status,
       ...(payload.start_at ? { start_at: payload.start_at } : {}),
       ...(acao === 'oferecer_datas' ? { alternative_slots: payload.slots } : {}),
     } : m))
-    if (data.sent && !data.sendOk) alert('Reunião atualizada, mas a mensagem ao cliente falhou: ' + (data.sendError || 'verifique a conexão do WhatsApp.'))
     setOfferId('')
+    if (data.sent) {
+      if (data.sendOk) {
+        setSendFail(prev => { const n = { ...prev }; delete n[id]; return n })
+        toast('Reunião atualizada e mensagem enviada ao cliente.', 'ok')
+      } else {
+        // mantém a reunião atualizada; mostra aviso + opção de reenviar (quando aplicável)
+        setSendFail(prev => ({ ...prev, [id]: { messageId: data.retryable ? data.messageId : undefined, error: data.sendError || 'Falha ao enviar a mensagem.' } }))
+        toast(data.sendError || 'Reunião atualizada, mas a mensagem ao cliente falhou.', 'err')
+      }
+    } else {
+      toast('Reunião atualizada.', 'ok')
+    }
+  }
+  async function reenviar(meetingId: string, messageId?: string) {
+    if (!messageId) { toast('Não há mensagem para reenviar — verifique o telefone do cliente.', 'err'); return }
+    setBusy(meetingId + 'reenviar')
+    let ok = false, err = ''
+    try {
+      const r = await fetch('/api/messages/resend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: messageId }) })
+      const d = await r.json().catch(() => ({})); ok = r.ok; err = d.error || ''
+    } catch { err = 'Falha de conexão.' }
+    setBusy('')
+    if (ok) { setSendFail(prev => { const n = { ...prev }; delete n[meetingId]; return n }); toast('Mensagem reenviada ao cliente.', 'ok') }
+    else toast(err || 'Não foi possível reenviar.', 'err')
   }
   async function reagendar(m: Meeting) {
     const data = prompt('Nova data (AAAA-MM-DD):', (m.start_at || m.requested_date || '').slice(0, 10)); if (!data) return
@@ -311,7 +345,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
   }
   function enviarOferta(id: string) {
     const slots = offerSlots.filter(s => s.date)
-    if (!slots.length) { alert('Informe ao menos uma data alternativa.'); return }
+    if (!slots.length) { toast('Informe ao menos uma data alternativa.', 'err'); return }
     meetingAcao(id, 'oferecer_datas', { slots })
   }
 
@@ -323,7 +357,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   async function criarProposta() {
-    if (!schemaReady) { alert('Rode o SQL supabase/02_negocios.sql para ativar propostas.'); return }
+    if (!schemaReady) { toast('Rode o SQL supabase/02_negocios.sql para ativar propostas.', 'err'); return }
     setBusy('pnew')
     const row: any = {
       agent_id: agentId, empresa: pForm.empresa || null, contato_nome: pForm.contato || null,
@@ -333,7 +367,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     }
     const { data, error } = await supabase.from('proposals').insert(row).select('*').single()
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setListaP(prev => [data as Proposal, ...prev])
     setShowPForm(false); setPForm(novaProposta())
   }
@@ -343,7 +377,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     if (status === 'enviada') patch.sent_at = new Date().toISOString()
     const { error } = await supabase.from('proposals').update(patch).eq('id', id)
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setListaP(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
   }
   async function duplicarProposta(p: Proposal) {
@@ -352,7 +386,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     const { id, created_at, sent_at, ...rest } = p as any
     const { data, error } = await supabase.from('proposals').insert({ ...rest, status: 'rascunho', sent_at: null }).select('*').single()
     setBusy('')
-    if (error) { alert(error.message); return }
+    if (error) { toast(error.message, 'err'); return }
     setListaP(prev => [data as Proposal, ...prev])
   }
   function gerarPDF(p: Proposal) {
@@ -517,6 +551,13 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
               <button onClick={() => enviarOferta(m.id)} disabled={busy === m.id + 'oferecer_datas'} className="btn-primary" style={{ fontSize: 12 }}>{busy === m.id + 'oferecer_datas' ? 'Enviando…' : 'Enviar opções ao cliente'}</button>
               <button onClick={() => setOfferId('')} className="btn-ghost" style={{ fontSize: 12 }}>Cancelar</button>
             </div>
+          </div>
+        )}
+
+        {sendFail[m.id] && (
+          <div style={{ background: 'color-mix(in oklch, var(--c-red) 8%, transparent)', border: '1px solid color-mix(in oklch, var(--c-red) 28%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: FONT.dm, fontSize: 12.5, color: 'var(--c-red)', fontWeight: 300 }}>⚠ Mensagem não enviada ao cliente — {sendFail[m.id].error}</span>
+            {sendFail[m.id].messageId && <button onClick={() => reenviar(m.id, sendFail[m.id].messageId)} disabled={busy === m.id + 'reenviar'} className="btn-ghost" style={{ fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }}>{busy === m.id + 'reenviar' ? 'Enviando…' : 'Tentar enviar novamente'}</button>}
           </div>
         )}
 
@@ -833,6 +874,22 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
           </div>
         </div>
       </div>
+
+      {/* Toasts */}
+      {toasts.length > 0 && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 360 }}>
+          {toasts.map(t => {
+            const cor = t.type === 'ok' ? 'var(--c-green)' : t.type === 'err' ? 'var(--c-red)' : CYAN
+            return (
+              <div key={t.id} className="animate-slide-up" style={{ background: C.deep, border: `1px solid color-mix(in oklch, ${cor} 40%, var(--c-border))`, borderLeft: `3px solid ${cor}`, borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 30px oklch(20% 0.05 250 / 0.5)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ color: cor, fontSize: 13, lineHeight: 1.3 }}>{t.type === 'ok' ? '✓' : t.type === 'err' ? '⚠' : 'ℹ'}</span>
+                <span style={{ fontFamily: FONT.dm, fontSize: 13, color: C.white, fontWeight: 300, lineHeight: 1.45 }}>{t.text}</span>
+                <button onClick={() => setToasts(ts => ts.filter(x => x.id !== t.id))} style={{ background: 'none', border: 'none', color: C.faint, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0, marginLeft: 'auto' }}>×</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 1040px){ .ng-grid{ grid-template-columns: 1fr !important; } }

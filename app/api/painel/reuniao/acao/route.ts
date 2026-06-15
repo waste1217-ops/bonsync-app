@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendText } from '@/lib/evolution'
+import { sendText, toSendTarget } from '@/lib/evolution'
 
 function mapSendError(err: any): string {
-  const m = String(err?.message || '').match(/Evolution API (\d+)/)
+  const msg = String(err?.message || '')
+  if (msg.startsWith('SEND_TARGET:NO_PHONE')) return 'O cliente não possui telefone cadastrado.'
+  if (msg.startsWith('SEND_TARGET:INVALID_NUMBER')) return 'O número do cliente é inválido.'
+  const m = msg.match(/Evolution API (\d+)/)
   const s = m ? Number(m[1]) : 0
-  if (s === 401 || s === 403) return 'Token inválido ou sem permissão'
-  if (s === 404) return 'Instância/canal não encontrado (desconectado)'
-  if (s === 400) return 'Número inválido ou requisição rejeitada'
-  if (!s) return 'WhatsApp API indisponível (timeout ou conexão)'
-  return `Erro ${s} da API do WhatsApp`
+  if (s === 401 || s === 403) return 'Token inválido ou sem permissão.'
+  if (s === 404) return 'O WhatsApp está desconectado.'
+  if (s === 400) return 'A API de mensagens rejeitou a solicitação.'
+  if (!s) return 'WhatsApp indisponível (timeout ou conexão).'
+  return `Erro ${s} da API do WhatsApp.`
 }
+const codeMsg = (code: string) => code === 'NO_PHONE' ? 'O cliente não possui telefone cadastrado.' : 'O número do cliente é inválido.'
 
 const fmtDate = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })
 const fmtTime = (d: Date) => d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
@@ -145,26 +149,43 @@ export async function POST(req: NextRequest) {
     await admin.from('messages').insert({ conversation_id: convId, role: 'system', content: evento }).then(() => {}, () => {})
   }
 
-  // envia ao cliente + registra a mensagem enviada
-  let sendResult: { ok: boolean; error?: string } = { ok: true }
-  if (mensagem && m.contact_identifier) {
+  // resolve o telefone do contato que originou a oportunidade
+  let contato: string | null = m.contact_identifier || null
+  if (!contato && convId) {
+    const { data: c } = await admin.from('conversations').select('contact_identifier').eq('id', convId).maybeSingle()
+    contato = c?.contact_identifier || null
+  }
+
+  // envia ao cliente + registra a mensagem enviada (com status para retry)
+  let sendResult: { ok: boolean; error?: string; messageId?: string; retryable?: boolean } = { ok: true }
+  if (mensagem) {
+    const alvo = toSendTarget(contato)
     if (!instance) {
-      sendResult = { ok: false, error: 'Agente sem instância de WhatsApp configurada.' }
+      sendResult = { ok: false, error: 'Agente sem instância de WhatsApp configurada.', retryable: false }
+    } else if (!alvo.ok) {
+      // número ausente/inválido: não adianta reenviar
+      console.error('[reuniao/acao] alvo inválido', JSON.stringify({ original: alvo.original, code: alvo.code }))
+      sendResult = { ok: false, error: codeMsg(alvo.code), retryable: false }
     } else {
       const { data: saved } = convId
         ? await admin.from('messages').insert({ conversation_id: convId, role: 'assistant', content: mensagem, send_status: 'enviando' }).select('id').single()
         : { data: null as any }
       try {
-        await sendText(instance, m.contact_identifier, mensagem)
+        await sendText(instance, alvo.target, mensagem)
         if (saved?.id) await admin.from('messages').update({ send_status: 'enviada' }).eq('id', saved.id)
+        sendResult = { ok: true, messageId: saved?.id }
       } catch (err: any) {
         const motivo = mapSendError(err)
         if (saved?.id) await admin.from('messages').update({ send_status: 'falha', send_error: motivo }).eq('id', saved.id)
-        sendResult = { ok: false, error: motivo }
+        sendResult = { ok: false, error: motivo, messageId: saved?.id, retryable: !!saved?.id }
       }
     }
     if (convId) await admin.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
   }
 
-  return NextResponse.json({ success: true, status: patch.status, sent: !!mensagem, sendOk: sendResult.ok, sendError: sendResult.error })
+  return NextResponse.json({
+    success: true, status: patch.status, sent: !!mensagem,
+    sendOk: sendResult.ok, sendError: sendResult.error,
+    messageId: sendResult.messageId, retryable: sendResult.retryable,
+  })
 }
