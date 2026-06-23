@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { T } from '@/lib/styles'
 import { ConversasCentral, type Conv } from '@/components/ConversasCentral'
+import { LimparHistorico } from '@/components/LimparHistorico'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,9 +36,12 @@ export default async function PainelConversasPage() {
 
   return (
     <div className="animate-slide-up" style={{ maxWidth: 1280 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={T.h1}>Conversas</h1>
-        <p style={{ ...T.sub, marginTop: 4 }}>Acompanhe todos os atendimentos do seu agente, veja conversas em aberto e identifique oportunidades.</p>
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={T.h1}>Conversas</h1>
+          <p style={{ ...T.sub, marginTop: 4 }}>Acompanhe todos os atendimentos do seu agente, veja conversas em aberto e identifique oportunidades.</p>
+        </div>
+        <LimparHistorico />
       </div>
       <ConversasCentral conversas={all} termos={termos} />
     </div>
