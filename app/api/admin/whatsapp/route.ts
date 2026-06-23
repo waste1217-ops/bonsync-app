@@ -67,6 +67,16 @@ async function saveInstance(admin: ReturnType<typeof createAdminClient>, clientI
   try { await admin.from('profiles').update({ whatsapp_instance: instance }).eq('id', clientId) } catch {}
 }
 
+// Cria um link seguro/temporário, individual da instância do cliente. O link
+// só permite conectar (escanear QR) — não dá acesso ao admin nem a outros dados.
+async function criarLink(admin: ReturnType<typeof createAdminClient>, instance: string, origin: string): Promise<{ url: string; token: string } | null> {
+  try {
+    const { data } = await admin.from('instance_connect_tokens').insert({ instance }).select('token').single()
+    if (!data?.token) return null
+    return { url: `${origin}/conectar/${data.token}`, token: data.token }
+  } catch { return null }
+}
+
 export async function POST(req: NextRequest) {
   const { ctx, error: authError } = await requireAdmin({ write: true })
   if (authError) return authError
@@ -87,7 +97,19 @@ export async function POST(req: NextRequest) {
       if (st.status === 'conectado' && !prof.whatsapp_connected_at) {
         try { await admin.from('profiles').update({ whatsapp_connected_at: new Date().toISOString() }).eq('id', client_id) } catch {}
       }
-      return NextResponse.json({ instance, ...st, lastConnection: prof.whatsapp_connected_at ?? null })
+      return NextResponse.json({ instance, ...st, lastConnection: prof.whatsapp_connected_at ?? null, lastSent: prof.whatsapp_qr_sent_at ?? null })
+    }
+
+    // ── LINK SEGURO PARA O CLIENTE ───────────────────────────
+    if (action === 'link') {
+      // garante a instância (cria se não existir)
+      const c = await evoConnect(instance)
+      if (!c.ok && (c.status === 404 || c.status === 400)) { await evoCreate(instance); await saveInstance(admin, client_id, instance) }
+      else await saveInstance(admin, client_id, instance)
+      const link = await criarLink(admin, instance, new URL(req.url).origin)
+      if (!link) return NextResponse.json({ error: 'Não foi possível gerar o link seguro.' }, { status: 502 })
+      await logAction(ctx!.actor, 'whatsapp.link', { entity: 'client', entityId: client_id, details: { instance, token: link.token } })
+      return NextResponse.json({ connectUrl: link.url, token: link.token, instance })
     }
 
     // ── GERAR / RENOVAR QR ───────────────────────────────────
@@ -128,20 +150,23 @@ export async function POST(req: NextRequest) {
     // ── ENVIAR QR POR E-MAIL ─────────────────────────────────
     if (action === 'send-qr') {
       const dest = String(email || prof.email || '').trim()
-      if (!dest) return NextResponse.json({ error: 'O cliente não possui e-mail cadastrado. Informe um e-mail.' }, { status: 400 })
+      if (!dest) return NextResponse.json({ error: 'Este cliente não possui um e-mail cadastrado. Adicione um e-mail ao perfil para continuar.' }, { status: 400 })
       let c = await evoConnect(instance)
-      if (!c.ok || !c.qr) { await evoCreate(instance); await saveInstance(admin, client_id, instance); c = await evoConnect(instance) }
-      if (!c.qr) return NextResponse.json({ error: 'Não foi possível gerar o QR Code para enviar.' }, { status: 502 })
-      const b64 = stripB64(c.qr)
+      if (!c.ok) { await evoCreate(instance); await saveInstance(admin, client_id, instance); c = await evoConnect(instance) }
+      else await saveInstance(admin, client_id, instance)
+      const b64 = c.qr ? stripB64(c.qr) : ''
+      const link = await criarLink(admin, instance, new URL(req.url).origin)
       const result = await sendEmail({
         to: dest,
-        subject: 'Conecte seu WhatsApp — Bonsync',
-        html: qrEmailHtml({ companyName: prof.company_name || 'cliente' }),
-        attachments: [{ filename: 'qrcode-whatsapp.png', content: b64, content_id: 'qrcode' }],
+        subject: 'Conecte seu WhatsApp à Bonsync',
+        html: qrEmailHtml({ companyName: prof.company_name || 'cliente', connectUrl: link?.url || null, hasQr: !!b64 }),
+        attachments: b64 ? [{ filename: 'qrcode-whatsapp.png', content: b64, content_id: 'qrcode' }] : undefined,
       })
       if (!result.ok) return NextResponse.json({ error: result.error || 'Falha ao enviar o e-mail.' }, { status: 502 })
-      await logAction(ctx!.actor, 'whatsapp.qr_email', { entity: 'client', entityId: client_id, details: { instance, email: dest } })
-      return NextResponse.json({ ok: true, email: dest })
+      const sentAt = new Date().toISOString()
+      try { await admin.from('profiles').update({ whatsapp_qr_sent_at: sentAt }).eq('id', client_id) } catch {}
+      await logAction(ctx!.actor, 'whatsapp.qr_email', { entity: 'client', entityId: client_id, details: { instance, email: dest, token: link?.token ?? null, status: 'enviado' } })
+      return NextResponse.json({ ok: true, email: dest, connectUrl: link?.url || null, sentAt })
     }
 
     return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })

@@ -89,7 +89,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Conexão WhatsApp — somente no Painel Admin */}
-      <AdminWhatsAppSection clientId={id} clientEmail={cliente.email ?? null} lastConnection={(cliente as any).whatsapp_connected_at ?? null} />
+      <AdminWhatsAppSection clientId={id} clientEmail={cliente.email ?? null} lastConnection={(cliente as any).whatsapp_connected_at ?? null} lastSent={(cliente as any).whatsapp_qr_sent_at ?? null} />
 
       {/* Assinatura / cobrança */}
       {sub && (

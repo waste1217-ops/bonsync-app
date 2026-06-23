@@ -5,4 +5,5 @@
 -- ════════════════════════════════════════════════════
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS whatsapp_instance     TEXT,
-  ADD COLUMN IF NOT EXISTS whatsapp_connected_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS whatsapp_connected_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS whatsapp_qr_sent_at   TIMESTAMPTZ;
