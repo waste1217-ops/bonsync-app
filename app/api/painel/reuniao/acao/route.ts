@@ -12,6 +12,7 @@ function mapSendError(err: any): string {
   if (s === 401 || s === 403) return 'Token inválido ou sem permissão.'
   if (s === 404) return 'O WhatsApp está desconectado.'
   if (s === 400) return 'A API de mensagens rejeitou a solicitação.'
+  if (s === 500) return 'Sessão do WhatsApp instável — use "Reconectar sessão" no perfil do cliente.'
   if (!s) return 'WhatsApp indisponível (timeout ou conexão).'
   return `Erro ${s} da API do WhatsApp.`
 }

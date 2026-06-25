@@ -138,6 +138,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ instance, qr: c.qr || '', status: st.status, number: st.number })
     }
 
+    // ── RECONECTAR SESSÃO (restart) ──────────────────────────
+    if (action === 'restart') {
+      const r = await fetch(`${EVO_URL}/instance/restart/${instance}`, { method: 'POST', headers: evoHeaders })
+      if (!r.ok) return NextResponse.json({ error: 'Não foi possível reconectar a sessão.' }, { status: 502 })
+      await logAction(ctx!.actor, 'whatsapp.restart', { entity: 'client', entityId: client_id, details: { instance } })
+      // dá um tempo para o socket reabrir e devolve o status novo
+      await new Promise(res => setTimeout(res, 3500))
+      const st = await evoStatus(instance)
+      return NextResponse.json({ ok: true, ...st })
+    }
+
     // ── DESCONECTAR ──────────────────────────────────────────
     if (action === 'disconnect') {
       const r = await fetch(`${EVO_URL}/instance/logout/${instance}`, { method: 'DELETE', headers: evoHeaders })

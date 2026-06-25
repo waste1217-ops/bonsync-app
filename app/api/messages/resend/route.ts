@@ -9,6 +9,7 @@ function mapSendError(err: any): string {
   if (s === 401 || s === 403) return 'Token inválido ou sem permissão'
   if (s === 404) return 'Instância/canal não encontrado (desconectado)'
   if (s === 400) return 'Número inválido ou requisição rejeitada'
+  if (s === 500) return 'Sessão do WhatsApp instável — reconecte a instância no painel admin'
   if (!s) return 'WhatsApp API indisponível (timeout ou conexão)'
   return `Erro ${s} da API do WhatsApp`
 }

@@ -93,6 +93,14 @@ export function AdminWhatsAppSection({ clientId, clientEmail, lastConnection: in
     setStatus('desconectado'); setNumero(null); setLast(null)
   }
 
+  async function reconectar() {
+    setBusy('restart'); setEmailMsg(null)
+    const { ok, data } = await call('restart', clientId)
+    setBusy('')
+    if (!ok) { setEmailMsg({ ok: false, text: data.error || 'Não foi possível reconectar a sessão.' }); return }
+    setStatus(data.status); setNumero(data.number ?? null)
+    setEmailMsg({ ok: data.status === 'conectado', text: data.status === 'conectado' ? 'Sessão reconectada com sucesso.' : 'Sessão reiniciada — aguardando o WhatsApp reconectar. Atualize em alguns segundos.' })
+  }
   async function gerarLink() {
     setBusy('link'); setEmailMsg(null)
     const { ok, data } = await call('link', clientId)
@@ -135,6 +143,7 @@ export function AdminWhatsAppSection({ clientId, clientEmail, lastConnection: in
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button onClick={() => gerarQr('qr')} className="btn-primary" style={{ fontSize: 13 }}>Gerar QR Code</button>
+        <button onClick={reconectar} disabled={busy === 'restart'} className="btn-ghost" style={{ fontSize: 13 }}>{busy === 'restart' ? 'Reconectando…' : 'Reconectar sessão'}</button>
         <button onClick={gerarLink} disabled={busy === 'link'} className="btn-ghost" style={{ fontSize: 13 }}>{busy === 'link' ? 'Gerando…' : copied ? 'Link copiado!' : 'Copiar link seguro'}</button>
         <button
           onClick={() => { if (!semEmail) setConfirmSend(true); else setEmailMsg({ ok: false, text: 'Este cliente não possui um e-mail cadastrado. Adicione um e-mail ao perfil para continuar.' }) }}
