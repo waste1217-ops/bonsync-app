@@ -42,9 +42,15 @@ export async function POST(req: NextRequest) {
 
   await admin.from('messages').update({ send_status: 'enviando', send_error: null }).eq('id', message_id)
   try {
-    await sendText(instance, conv.contact_identifier, msg.content)
-    await admin.from('messages').update({ send_status: 'enviada', send_error: null }).eq('id', message_id)
-    return NextResponse.json({ success: true })
+    const data: any = await sendText(instance, conv.contact_identifier, msg.content)
+    const waId = data?.key?.id || null
+    if (!waId) {
+      await admin.from('messages').update({ send_status: 'falha', send_error: 'API não retornou messageId' }).eq('id', message_id)
+      return NextResponse.json({ error: 'A integração não confirmou o envio (sem messageId).' }, { status: 502 })
+    }
+    // 201 + messageId = aceita pela API; o ACK (webhook) confirma entregue/lida
+    await admin.from('messages').update({ send_status: 'aceita', send_error: null, wa_message_id: waId }).eq('id', message_id)
+    return NextResponse.json({ success: true, status: 'aceita' })
   } catch (err: any) {
     const motivo = mapSendError(err)
     await admin.from('messages').update({ send_status: 'falha', send_error: motivo }).eq('id', message_id)

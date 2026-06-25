@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     await fetch(`${url}/webhook/set/${instance}`, {
       method: 'POST', headers,
       body: JSON.stringify({
-        webhook: { enabled: true, url: webhookUrl(), webhookByEvents: false, webhookBase64: false, events: ['MESSAGES_UPSERT'] },
+        webhook: { enabled: true, url: webhookUrl(), webhookByEvents: false, webhookBase64: false, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] },
       }),
     })
 

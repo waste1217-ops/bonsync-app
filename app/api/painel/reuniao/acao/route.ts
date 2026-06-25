@@ -172,9 +172,16 @@ export async function POST(req: NextRequest) {
         ? await admin.from('messages').insert({ conversation_id: convId, role: 'assistant', content: mensagem, send_status: 'enviando' }).select('id').single()
         : { data: null as any }
       try {
-        await sendText(instance, alvo.target, mensagem)
-        if (saved?.id) await admin.from('messages').update({ send_status: 'enviada' }).eq('id', saved.id)
-        sendResult = { ok: true, messageId: saved?.id }
+        const data: any = await sendText(instance, alvo.target, mensagem)
+        const waId = data?.key?.id || null
+        if (!waId) {
+          if (saved?.id) await admin.from('messages').update({ send_status: 'falha', send_error: 'API não retornou messageId' }).eq('id', saved.id)
+          sendResult = { ok: false, error: 'A integração não confirmou o envio (sem messageId).', messageId: saved?.id, retryable: !!saved?.id }
+        } else {
+          // aceita pela API; ACK (webhook) confirma entregue/lida depois
+          if (saved?.id) await admin.from('messages').update({ send_status: 'aceita', wa_message_id: waId }).eq('id', saved.id)
+          sendResult = { ok: true, messageId: saved?.id }
+        }
       } catch (err: any) {
         const motivo = mapSendError(err)
         if (saved?.id) await admin.from('messages').update({ send_status: 'falha', send_error: motivo }).eq('id', saved.id)

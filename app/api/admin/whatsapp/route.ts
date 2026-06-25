@@ -32,7 +32,7 @@ async function evoCreate(instance: string) {
   if (r.ok) {
     await fetch(`${EVO_URL}/webhook/set/${instance}`, {
       method: 'POST', headers: evoHeaders,
-      body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl(), webhookByEvents: false, webhookBase64: false, events: ['MESSAGES_UPSERT'] } }),
+      body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl(), webhookByEvents: false, webhookBase64: false, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] } }),
     }).catch(() => {})
   }
   return r
