@@ -63,18 +63,33 @@ export async function sendText(instance: string, to: string, text: string) {
   const number = r.target
   console.log('[evolution] sendText →', JSON.stringify({ original: r.original, target: number, endpoint, instance, textLen: text.length }))
 
-  let res: Response
-  try {
-    res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ number, text }) })
-  } catch (e: any) {
-    console.error('[evolution] sem conexão com a API:', e?.message)
-    throw new Error('Evolution API 0: network')
+  async function attempt(): Promise<{ status: number; body: string }> {
+    let res: Response
+    try {
+      res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ number, text }) })
+    } catch (e: any) {
+      console.error('[evolution] sem conexão com a API:', e?.message)
+      throw new Error('Evolution API 0: network')
+    }
+    const body = await res.text()
+    return { status: res.status, body }
   }
 
-  const bodyText = await res.text()
-  console.log('[evolution] resposta', JSON.stringify({ target: number, status: res.status, body: bodyText.slice(0, 500) }))
-  if (!res.ok) throw new Error(`Evolution API ${res.status}: ${bodyText}`)
-  try { return JSON.parse(bodyText) } catch { return {} }
+  let { status, body } = await attempt()
+  console.log('[evolution] resposta', JSON.stringify({ target: number, status, body: body.slice(0, 500) }))
+
+  // Autocura: sessão "open mas socket morto" (500 Connection Closed) → restart + 1 retry
+  if (status === 500 && /connection closed|connection is closed|socket/i.test(body)) {
+    console.warn('[evolution] sessão caída — reiniciando instância e reenviando…', JSON.stringify({ instance }))
+    await fetch(`${BASE_URL}/instance/restart/${instance}`, { method: 'POST', headers }).catch(() => {})
+    await new Promise(r => setTimeout(r, 4000))
+    const retry = await attempt()
+    status = retry.status; body = retry.body
+    console.log('[evolution] resposta (após restart)', JSON.stringify({ target: number, status, body: body.slice(0, 500) }))
+  }
+
+  if (status < 200 || status >= 300) throw new Error(`Evolution API ${status}: ${body}`)
+  try { return JSON.parse(body) } catch { return {} }
 }
 
 /** Tipos do payload de webhook da Evolution API v2 */
