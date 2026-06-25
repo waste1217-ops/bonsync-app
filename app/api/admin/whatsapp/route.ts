@@ -149,12 +149,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...st })
     }
 
-    // ── DESCONECTAR ──────────────────────────────────────────
+    // ── DESCONECTAR (encerra e APAGA a sessão de verdade) ────
     if (action === 'disconnect') {
-      const r = await fetch(`${EVO_URL}/instance/logout/${instance}`, { method: 'DELETE', headers: evoHeaders })
-      if (!r.ok && r.status !== 404) return NextResponse.json({ error: 'Não foi possível desconectar.' }, { status: 502 })
+      // 1) logout: encerra a conexão ativa (desvincula o aparelho)
+      await fetch(`${EVO_URL}/instance/logout/${instance}`, { method: 'DELETE', headers: evoHeaders }).catch(() => {})
+      // 2) delete: remove a instância e TODAS as credenciais/sessão salvas,
+      //    impedindo reconexão automática sem novo QR.
+      const del = await fetch(`${EVO_URL}/instance/delete/${instance}`, { method: 'DELETE', headers: evoHeaders })
+      if (!del.ok && del.status !== 404) {
+        const txt = await del.text().catch(() => '')
+        console.error('[admin/whatsapp] delete falhou:', del.status, txt)
+        return NextResponse.json({ error: 'Não foi possível desconectar/remover a sessão.' }, { status: 502 })
+      }
+      // 3) status no banco = desconectado (mantém o nome da instância p/ recriar)
       try { await admin.from('profiles').update({ whatsapp_connected_at: null }).eq('id', client_id) } catch {}
-      await logAction(ctx!.actor, 'whatsapp.disconnect', { entity: 'client', entityId: client_id, details: { instance } })
+      await logAction(ctx!.actor, 'whatsapp.disconnect', { entity: 'client', entityId: client_id, details: { instance, removed: true } })
       return NextResponse.json({ ok: true, status: 'desconectado' })
     }
 
