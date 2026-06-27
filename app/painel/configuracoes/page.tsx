@@ -461,6 +461,19 @@ export default function PainelConfigPage() {
                 </div>
               </div>
 
+              {SEGMENTOS[sched.segmento || 'comercial']?.pedidos && (
+                <div style={cardSec}>
+                  <h2 style={secTitle}>Pedidos e entrega (alimentício)</h2>
+                  <p style={secSub}>Modalidades (Pronta entrega, Delivery, Retirada, Encomenda…) aparecem na Agenda. O campo "Serviços oferecidos" acima funciona como seu cardápio.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <Campo label="Taxa de entrega (delivery)"><input className="field" value={sched.taxa_entrega || ''} onChange={e => setSched('taxa_entrega', e.target.value)} placeholder="Ex.: R$ 8,00" /></Campo>
+                    <Campo label="Área de entrega"><input className="field" value={sched.area_entrega || ''} onChange={e => setSched('area_entrega', e.target.value)} placeholder="Bairros atendidos / raio" /></Campo>
+                    <Campo label="Tempo médio de preparo (min)"><input className="field" type="number" value={sched.tempo_preparo || ''} onChange={e => setSched('tempo_preparo', Number(e.target.value))} /></Campo>
+                    <Campo label="Formas de pagamento" hint="Separe por vírgula."><input className="field" value={sched.formas_pagamento || ''} onChange={e => setSched('formas_pagamento', e.target.value)} placeholder="Pix, Cartão, Dinheiro" /></Campo>
+                  </div>
+                </div>
+              )}
+
               <div style={cardSec}>
                 <h2 style={secTitle}>Disponibilidade</h2>
                 <p style={secSub}>A IA só pode oferecer horários dentro desta janela. Ela nunca inventa disponibilidade.</p>

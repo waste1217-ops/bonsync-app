@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { C, T, CARD, FONT, badgeStyle } from '@/lib/styles'
-import { AGENDA_STATUS, type Segmento, type CampoExtra } from '@/lib/segmentos'
+import { AGENDA_STATUS, MODALIDADES_PEDIDO, type Segmento, type CampoExtra } from '@/lib/segmentos'
 
 export interface AgMeeting {
   id: string; status: string
@@ -119,6 +119,29 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
     if (error) { toast(error.message, false); return }
     setLista(p => p.map(m => m.id === id ? { ...m, ...patch } : m))
   }
+
+  // Ponte pedido → venda/faturamento: ao confirmar um pedido com valor, registra
+  // a venda em Vendas Geradas (deduplicado pela flag campos._venda).
+  async function confirmarPedido(m: AgMeeting) {
+    const cp = m.campos || {}
+    const valor = cp.valor_total || cp.valor_produtos || ''
+    await setStatus(m.id, 'confirmada')
+    if (cp._venda) return                                  // já gerou venda — não duplica
+    if (!valor) { toast('Pedido confirmado (sem valor — não somou ao faturamento).'); return }
+    setBusy(m.id + 'venda')
+    try {
+      const res = await fetch('/api/painel/venda', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente: m.empresa || m.contato_nome, contato: m.contato_nome, telefone: m.contact_identifier, produto: cp.produtos || m.assunto, valor, forma_pagamento: cp.forma_pagamento, status: 'confirmed', observacoes: m.observacoes }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast('Pedido confirmado, mas a venda não foi registrada: ' + (data.error || ''), false); return }
+      const novoCampos = { ...cp, _venda: true }
+      await supabase.from('meetings').update({ campos: novoCampos }).eq('id', m.id)
+      setLista(p => p.map(x => x.id === m.id ? { ...x, campos: novoCampos } : x))
+      toast('Pedido confirmado e venda registrada no faturamento.')
+    } catch { toast('Pedido confirmado, mas falhou ao registrar a venda.', false) } finally { setBusy('') }
+  }
   async function reagendar(m: AgMeeting) {
     const d = prompt('Nova data (AAAA-MM-DD):', (m.start_at || m.requested_date || '').slice(0, 10)); if (!d) return
     const h = prompt('Novo horário (HH:MM):', m.start_at ? fmtT(m.start_at) : (m.requested_time || '09:00')); if (!h) return
@@ -216,11 +239,25 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
                         </div>
                         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                           {conv && <a href={`/painel/conversas/${conv}`} style={linkSt}>Ver conversa</a>}
-                          {['aguardando', 'aguardando_info', 'sugerida', 'detectada', 'aguardando_escolha', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'confirmada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Confirmar</button>}
-                          {['confirmada', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'em_atendimento')} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Em atendimento</button>}
-                          {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Concluir</button>}
-                          {!['realizada', 'cancelada', 'recusada'].includes(m.status) && <button onClick={() => reagendar(m)} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Reagendar</button>}
-                          {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'ausente')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Não compareceu</button>}
+                          {seg.pedidos ? (
+                            <>
+                              {['aguardando', 'aguardando_info', 'sugerida', 'detectada'].includes(m.status) && <button onClick={() => confirmarPedido(m)} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>{busy === m.id + 'venda' ? 'Confirmando…' : 'Confirmar pedido'}</button>}
+                              {['confirmada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'em_preparacao')} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Em preparação</button>}
+                              {['em_preparacao', 'confirmada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'pronto')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Pronto</button>}
+                              {['pronto', 'em_preparacao'].includes(m.status) && <button onClick={() => setStatus(m.id, 'saiu_entrega')} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Saiu p/ entrega</button>}
+                              {['pronto', 'em_preparacao'].includes(m.status) && <button onClick={() => setStatus(m.id, 'aguardando_retirada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-yellow)' }}>Aguardando retirada</button>}
+                              {['saiu_entrega', 'aguardando_retirada', 'pronto'].includes(m.status) && <button onClick={() => setStatus(m.id, 'entregue')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Entregue</button>}
+                              {['entregue', 'saiu_entrega', 'aguardando_retirada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Concluir</button>}
+                            </>
+                          ) : (
+                            <>
+                              {['aguardando', 'aguardando_info', 'sugerida', 'detectada', 'aguardando_escolha', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'confirmada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Confirmar</button>}
+                              {['confirmada', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'em_atendimento')} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Em atendimento</button>}
+                              {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Concluir</button>}
+                              {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'ausente')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Não compareceu</button>}
+                            </>
+                          )}
+                          {!['realizada', 'cancelada', 'recusada', 'entregue'].includes(m.status) && <button onClick={() => reagendar(m)} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Reagendar</button>}
                           {!['cancelada', 'recusada', 'realizada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'cancelada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Cancelar</button>}
                         </div>
                       </td>
@@ -270,7 +307,9 @@ function Form({ seg, campos, profissionais, servicos, form, setForm, onSave, bus
       <Row>
         <F label={seg.cliente}><input className="field" value={form.contato_nome} onChange={e => set('contato_nome', e.target.value)} /></F>
         <F label="Telefone / contato"><input className="field" value={form.contact_identifier} onChange={e => set('contact_identifier', e.target.value)} placeholder="5511999999999" /></F>
-        <F label="Empresa (opcional)"><input className="field" value={form.empresa} onChange={e => set('empresa', e.target.value)} /></F>
+        {seg.pedidos
+          ? <F label="Modalidade do pedido"><select className="field" value={form.tipo} onChange={e => set('tipo', e.target.value)}><option value="">—</option>{MODALIDADES_PEDIDO.map(m => <option key={m} value={m}>{m}</option>)}</select></F>
+          : <F label="Empresa (opcional)"><input className="field" value={form.empresa} onChange={e => set('empresa', e.target.value)} /></F>}
       </Row>
       <Row>
         <F label="Data"><input className="field" type="date" value={form.data} onChange={e => set('data', e.target.value)} /></F>
