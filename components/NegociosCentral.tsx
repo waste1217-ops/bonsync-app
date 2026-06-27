@@ -161,11 +161,27 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
   const [offerSlots, setOfferSlots] = useState<{ date: string; time: string }[]>([{ date: '', time: '' }, { date: '', time: '' }, { date: '', time: '' }])
   const [toasts, setToasts] = useState<{ id: number; type: 'ok' | 'err' | 'info'; text: string }[]>([])
   const [sendFail, setSendFail] = useState<Record<string, { messageId?: string; error: string }>>({})
+  const [limpar, setLimpar] = useState<0 | 1 | 2>(0)   // 0 fechado · 1 período · 2 confirmar
+  const [limparPeriod, setLimparPeriod] = useState('')
+  const [limparBusy, setLimparBusy] = useState(false)
   const toggle = (k: string) => setOpen(p => ({ ...p, [k]: !p[k] }))
   function toast(text: string, type: 'ok' | 'err' | 'info' = 'info') {
     const id = Date.now() + Math.random()
     setToasts(t => [...t, { id, type, text }])
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 6000)
+  }
+  async function apagarReunioes() {
+    setLimparBusy(true)
+    try {
+      const res = await fetch('/api/painel/limpar-reunioes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period: limparPeriod }) })
+      const data = await res.json().catch(() => ({}))
+      setLimparBusy(false)
+      if (!res.ok) { toast(data.error || 'Não foi possível apagar o histórico de reuniões.', 'err'); return }
+      const ids: string[] = data.ids || []
+      setListaM(prev => prev.filter(m => !ids.includes(m.id)))   // atualiza a listagem
+      setLimpar(0); setLimparPeriod('')
+      toast('Histórico de reuniões apagado com sucesso.', 'ok')
+    } catch { setLimparBusy(false); toast('Não foi possível apagar o histórico de reuniões. Tente novamente.', 'err') }
   }
 
   // ── derivados de deals
@@ -733,6 +749,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
             <button onClick={() => { setShowMForm(s => !s); if (!showMForm) setMForm(novaReuniao()) }} className="btn-primary" style={{ fontSize: 12 }}>{showMForm ? 'Fechar' : '+ Criar reunião'}</button>
             <a href="/painel/leads" className="btn-ghost" style={{ fontSize: 12 }}>Ver oportunidades</a>
             <a href="/painel/conversas" className="btn-ghost" style={{ fontSize: 12 }}>Ver conversas</a>
+            {listaM.length > 0 && <button onClick={() => { setLimpar(1); setLimparPeriod('') }} className="btn-ghost" style={{ fontSize: 12, color: C.muted, marginLeft: 'auto' }}>Apagar histórico de reuniões</button>}
           </div>
           {!schemaReady && <NoticeSchema />}
           {showMForm && <MeetingForm form={mForm} setForm={setMForm} onSave={criarReuniao} busy={busy === 'mnew'} onCancel={() => setShowMForm(false)} />}
@@ -874,6 +891,52 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
           </div>
         </div>
       </div>
+
+      {/* Apagar histórico de reuniões */}
+      {limpar > 0 && (
+        <div onClick={() => { if (!limparBusy) { setLimpar(0); setLimparPeriod('') } }} style={{ position: 'fixed', inset: 0, background: 'oklch(10% 0.03 250 / 0.7)', backdropFilter: 'blur(3px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: C.deep, border: `1px solid ${C.borderHi}`, borderRadius: 16, padding: 24, position: 'relative' }}>
+            <button onClick={() => { if (!limparBusy) { setLimpar(0); setLimparPeriod('') } }} aria-label="Fechar" style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer' }}>×</button>
+            {limpar === 1 ? (
+              <>
+                <h2 style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 18, color: C.white, marginBottom: 6 }}>Apagar histórico de reuniões</h2>
+                <p style={{ ...T.sub, fontSize: 13, marginBottom: 18 }}>Escolha o período. Apaga apenas reuniões já encerradas ou passadas — agendamentos futuros são mantidos.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                  {[['24h', 'Últimas 24 horas'], ['7d', 'Últimos 7 dias'], ['30d', 'Últimos 30 dias'], ['tudo', 'Todo o histórico']].map(([v, l]) => {
+                    const sel = limparPeriod === v; const alerta = v === 'tudo'; const cor = alerta ? 'var(--c-red)' : 'var(--c-blue-b)'
+                    return (
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 14px', borderRadius: 10, background: sel ? `color-mix(in oklch, ${cor} 10%, transparent)` : C.void, border: `1px solid ${sel ? `color-mix(in oklch, ${cor} 45%, transparent)` : alerta ? 'rgba(232,64,64,0.25)' : C.border}` }}>
+                        <input type="radio" name="limparReun" checked={sel} onChange={() => setLimparPeriod(v)} style={{ accentColor: alerta ? '#e84040' : 'oklch(55% 0.24 225)' }} />
+                        <span style={{ fontFamily: FONT.dm, fontSize: 14, fontWeight: 500, color: alerta ? 'var(--c-red)' : C.white }}>{alerta && '⚠ '}{l}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setLimpar(0); setLimparPeriod('') }} className="btn-ghost" style={{ fontSize: 13 }}>Cancelar</button>
+                  <button onClick={() => setLimpar(2)} disabled={!limparPeriod} className="btn-primary" style={{ fontSize: 13, opacity: limparPeriod ? 1 : 0.5, cursor: limparPeriod ? 'pointer' : 'not-allowed' }}>Apagar histórico</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ fontFamily: FONT.space, fontWeight: 700, fontSize: 18, color: C.white, marginBottom: 12 }}>Confirmar exclusão</h2>
+                <div style={{ background: 'rgba(232,64,64,0.08)', border: '1px solid rgba(232,64,64,0.3)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                  <p style={{ fontFamily: FONT.dm, fontSize: 14, color: C.white, fontWeight: 300, lineHeight: 1.55, marginBottom: 10 }}>
+                    Esta ação é <b>permanente</b> e não poderá ser desfeita. Apaga somente o histórico de reuniões deste cliente — não afeta conversas, leads, vendas nem agendamentos futuros.
+                  </p>
+                  <p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: 'var(--c-red)' }}>
+                    Período selecionado: <b>{({ '24h': '24 horas', '7d': '7 dias', '30d': '30 dias', tudo: 'todo o histórico' } as any)[limparPeriod]}</b>
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={() => setLimpar(1)} disabled={limparBusy} className="btn-ghost" style={{ fontSize: 13 }}>Cancelar</button>
+                  <button onClick={apagarReunioes} disabled={limparBusy} className="btn-primary" style={{ fontSize: 13, background: '#c23030', opacity: limparBusy ? 0.6 : 1 }}>{limparBusy ? 'Apagando…' : 'Confirmar e apagar'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toasts */}
       {toasts.length > 0 && (
