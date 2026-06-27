@@ -25,6 +25,8 @@ export default async function AgendaPage() {
   const campos = camposEfetivos(seg, sched.campos)
   const profissionais = toArr(sched.responsibles ?? sched.profissionais)
   const servicos = toArr(sched.servicos)
+  const servicosLista = Array.isArray(sched.servicos_lista) ? sched.servicos_lista.filter((s: any) => s && s.nome) : []
+  const unidades = toArr(sched.unidades)
 
   const [meetingsRes, { data: convs }] = await Promise.all([
     supabase.from('meetings').select('*').eq('agent_id', aid).order('start_at', { ascending: true }),
@@ -39,7 +41,8 @@ export default async function AgendaPage() {
   return (
     <AgendaCentral
       meetings={meetings} agentId={aid} seg={seg} campos={campos}
-      profissionais={profissionais} servicos={servicos} convMap={convMap} schemaReady={schemaReady}
+      profissionais={profissionais} servicos={servicos} servicosLista={servicosLista} unidades={unidades}
+      convMap={convMap} schemaReady={schemaReady}
     />
   )
 }

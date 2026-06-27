@@ -137,6 +137,8 @@ export default function PainelConfigPage() {
   const dc = cfg.digest?.conteudo || {}
   const sched = cfg.scheduling || {}
   const setSched = (k: string, v: any) => setCfg(c => ({ ...c, scheduling: { ...(c.scheduling || {}), [k]: v } }))
+  const servLista: any[] = Array.isArray(sched.servicos_lista) ? sched.servicos_lista : []
+  const setServLista = (arr: any[]) => setSched('servicos_lista', arr)
   const tr = cfg.training || {}
   const setTrain = (k: string, v: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: v } }))
   const addItem = (k: string, item: any) => setCfg(c => ({ ...c, training: { ...(c.training || {}), [k]: [...((c.training || {})[k] || []), item] } }))
@@ -456,8 +458,21 @@ export default function PainelConfigPage() {
                       {Object.entries(SEGMENTOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
                   </Campo>
-                  <Campo label="Serviços oferecidos" hint="Separe por vírgula. Aparecem ao criar agendamentos."><input className="field" value={sched.servicos || ''} onChange={e => setSched('servicos', e.target.value)} placeholder="Ex.: Corte, Coloração, Avaliação" /></Campo>
-                  <Campo label="Datas bloqueadas / feriados" hint="Datas sem atendimento (AAAA-MM-DD), separadas por vírgula."><input className="field" value={sched.datas_bloqueadas || ''} onChange={e => setSched('datas_bloqueadas', e.target.value)} placeholder="2026-12-25, 2027-01-01" /></Campo>
+                  <Campo label="Serviços oferecidos (rápido)" hint="Separe por vírgula. Use a lista abaixo para definir valor e duração."><input className="field" value={sched.servicos || ''} onChange={e => setSched('servicos', e.target.value)} placeholder="Ex.: Corte, Coloração, Avaliação" /></Campo>
+                  <div>
+                    <p style={{ ...T.label, marginBottom: 6 }}>Serviços com valor e duração</p>
+                    {servLista.map((s: any, i: number) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <input className="field" placeholder="Serviço" value={s.nome || ''} onChange={e => setServLista(servLista.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} />
+                        <input className="field" placeholder="Valor (R$)" value={s.valor || ''} onChange={e => setServLista(servLista.map((x, j) => j === i ? { ...x, valor: e.target.value } : x))} style={{ width: 120 }} />
+                        <input className="field" type="number" placeholder="min" value={s.duracao || ''} onChange={e => setServLista(servLista.map((x, j) => j === i ? { ...x, duracao: e.target.value } : x))} style={{ width: 90 }} />
+                        <button onClick={() => setServLista(servLista.filter((_, j) => j !== i))} className="btn-ghost" style={{ fontSize: 12, padding: '0 12px' }}>✕</button>
+                      </div>
+                    ))}
+                    <button onClick={() => setServLista([...servLista, { nome: '', valor: '', duracao: '' }])} className="btn-ghost" style={{ fontSize: 12 }}>+ Adicionar serviço</button>
+                  </div>
+                  <Campo label="Unidades de atendimento" hint="Separe por vírgula. Aparecem ao agendar."><input className="field" value={sched.unidades || ''} onChange={e => setSched('unidades', e.target.value)} placeholder="Unidade Centro, Unidade Sul" /></Campo>
+                  <Campo label="Datas bloqueadas / feriados / folgas" hint="Datas sem atendimento (AAAA-MM-DD), separadas por vírgula."><input className="field" value={sched.datas_bloqueadas || ''} onChange={e => setSched('datas_bloqueadas', e.target.value)} placeholder="2026-12-25, 2027-01-01" /></Campo>
                 </div>
               </div>
 

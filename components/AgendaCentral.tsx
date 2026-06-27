@@ -26,9 +26,11 @@ function effDate(m: AgMeeting): Date | null {
   return null
 }
 
-export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, servicos, convMap, schemaReady }: {
+export interface ServicoItem { nome: string; valor?: string; duracao?: any }
+export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, servicos, servicosLista = [], unidades = [], convMap, schemaReady }: {
   meetings: AgMeeting[]; agentId: string; seg: Segmento; campos: CampoExtra[]
-  profissionais: string[]; servicos: string[]; convMap: Record<string, string>; schemaReady: boolean
+  profissionais: string[]; servicos: string[]; servicosLista?: ServicoItem[]; unidades?: string[]
+  convMap: Record<string, string>; schemaReady: boolean
 }) {
   const supabase = createClient()
   const [lista, setLista] = useState<AgMeeting[]>(meetings)
@@ -94,7 +96,7 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
       if (conf) { toast(`Conflito: ${seg.profissional} "${form.profissional}" já tem agendamento nesse horário.`, false); return }
     }
     const camposObj: Record<string, any> = {}
-    for (const c of campos) if (form.campos?.[c.k]) camposObj[c.k] = form.campos[c.k]
+    for (const key of Object.keys(form.campos || {})) { const val = form.campos[key]; if (val !== '' && val != null) camposObj[key] = val }
     setBusy('novo')
     const row: any = {
       agent_id: agentId, empresa: form.empresa || null, contato_nome: form.contato_nome || null,
@@ -120,27 +122,36 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
     setLista(p => p.map(m => m.id === id ? { ...m, ...patch } : m))
   }
 
-  // Ponte pedido → venda/faturamento: ao confirmar um pedido com valor, registra
-  // a venda em Vendas Geradas (deduplicado pela flag campos._venda).
-  async function confirmarPedido(m: AgMeeting) {
+  // Registra a venda em Vendas Geradas/faturamento, deduplicado por campos._venda.
+  async function registrarVenda(m: AgMeeting, produto: string, valor: string, okMsg: string) {
     const cp = m.campos || {}
-    const valor = cp.valor_total || cp.valor_produtos || ''
-    await setStatus(m.id, 'confirmada')
     if (cp._venda) return                                  // já gerou venda — não duplica
-    if (!valor) { toast('Pedido confirmado (sem valor — não somou ao faturamento).'); return }
+    if (!valor) { toast(okMsg + ' (sem valor — não somou ao faturamento).'); return }
     setBusy(m.id + 'venda')
     try {
       const res = await fetch('/api/painel/venda', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente: m.empresa || m.contato_nome, contato: m.contato_nome, telefone: m.contact_identifier, produto: cp.produtos || m.assunto, valor, forma_pagamento: cp.forma_pagamento, status: 'confirmed', observacoes: m.observacoes }),
+        body: JSON.stringify({ cliente: m.empresa || m.contato_nome, contato: m.contato_nome, telefone: m.contact_identifier, produto, valor, forma_pagamento: cp.forma_pagamento, status: 'confirmed', observacoes: m.observacoes }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { toast('Pedido confirmado, mas a venda não foi registrada: ' + (data.error || ''), false); return }
+      if (!res.ok) { toast('Registrado, mas a venda não foi contabilizada: ' + (data.error || ''), false); return }
       const novoCampos = { ...cp, _venda: true }
       await supabase.from('meetings').update({ campos: novoCampos }).eq('id', m.id)
       setLista(p => p.map(x => x.id === m.id ? { ...x, campos: novoCampos } : x))
-      toast('Pedido confirmado e venda registrada no faturamento.')
-    } catch { toast('Pedido confirmado, mas falhou ao registrar a venda.', false) } finally { setBusy('') }
+      toast(okMsg + ' Venda registrada no faturamento.')
+    } catch { toast('Registrado, mas falhou ao contabilizar a venda.', false) } finally { setBusy('') }
+  }
+  // Alimentício: confirmar pedido → venda
+  async function confirmarPedido(m: AgMeeting) {
+    const cp = m.campos || {}
+    await setStatus(m.id, 'confirmada')
+    await registrarVenda(m, cp.produtos || m.assunto || 'Pedido', cp.valor_total || cp.valor_produtos || '', 'Pedido confirmado.')
+  }
+  // Serviços: concluir atendimento → venda (valor do serviço)
+  async function concluir(m: AgMeeting) {
+    const cp = m.campos || {}
+    await setStatus(m.id, 'realizada')
+    await registrarVenda(m, m.assunto || seg.servico, cp.valor_servico || '', 'Atendimento concluído.')
   }
   async function reagendar(m: AgMeeting) {
     const d = prompt('Nova data (AAAA-MM-DD):', (m.start_at || m.requested_date || '').slice(0, 10)); if (!d) return
@@ -170,7 +181,7 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
         </div>
       )}
 
-      {showForm && <Form seg={seg} campos={campos} profissionais={profOpts} servicos={servicos} form={form} setForm={setForm} onSave={criar} busy={busy === 'novo'} onCancel={() => setShowForm(false)} />}
+      {showForm && <Form seg={seg} campos={campos} profissionais={profOpts} servicos={servicos} servicosLista={servicosLista} unidades={unidades} form={form} setForm={setForm} onSave={criar} busy={busy === 'novo'} onCancel={() => setShowForm(false)} />}
 
       {/* Toolbar */}
       <div style={{ ...CARD, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -234,6 +245,8 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
                       <td colSpan={10} style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 12 }}>
                           {campos.map(c => m.campos?.[c.k] ? <div key={c.k}><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 2 }}>{c.label}</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.white }}>{m.campos[c.k]}</p></div> : null)}
+                          {m.campos?.valor_servico && <div><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 2 }}>Valor do serviço</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: 'var(--c-green)', fontWeight: 500 }}>{m.campos.valor_servico}</p></div>}
+                          {m.campos?.unidade && <div><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 2 }}>Unidade</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.white }}>{m.campos.unidade}</p></div>}
                           {m.empresa && m.contato_nome && <div><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 2 }}>Empresa</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.white }}>{m.empresa}</p></div>}
                           {m.observacoes && <div style={{ gridColumn: '1 / -1' }}><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 2 }}>Observações</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.muted, fontWeight: 300, lineHeight: 1.5 }}>{m.observacoes}</p></div>}
                         </div>
@@ -253,7 +266,7 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
                             <>
                               {['aguardando', 'aguardando_info', 'sugerida', 'detectada', 'aguardando_escolha', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'confirmada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Confirmar</button>}
                               {['confirmada', 'reagendada'].includes(m.status) && <button onClick={() => setStatus(m.id, 'em_atendimento')} disabled={!!busy} style={{ ...linkSt, color: 'oklch(80% 0.16 215)' }}>Em atendimento</button>}
-                              {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'realizada')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>Concluir</button>}
+                              {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => concluir(m)} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-green)' }}>{busy === m.id + 'venda' ? 'Concluindo…' : 'Concluir'}</button>}
                               {['confirmada', 'reagendada', 'em_atendimento'].includes(m.status) && <button onClick={() => setStatus(m.id, 'ausente')} disabled={!!busy} style={{ ...linkSt, color: 'var(--c-red)' }}>Não compareceu</button>}
                             </>
                           )}
@@ -297,9 +310,13 @@ function novo() {
   return { empresa: '', contato_nome: '', contact_identifier: '', assunto: '', data: '', hora: '', duracao: '30', profissional: '', tipo: 'reuniao', canal: '', observacoes: '', status: 'confirmada', campos: {} as Record<string, any> }
 }
 
-function Form({ seg, campos, profissionais, servicos, form, setForm, onSave, busy, onCancel }: { seg: Segmento; campos: CampoExtra[]; profissionais: string[]; servicos: string[]; form: any; setForm: (f: any) => void; onSave: () => void; busy: boolean; onCancel: () => void }) {
+function Form({ seg, campos, profissionais, servicos, servicosLista = [], unidades = [], form, setForm, onSave, busy, onCancel }: { seg: Segmento; campos: CampoExtra[]; profissionais: string[]; servicos: string[]; servicosLista?: ServicoItem[]; unidades?: string[]; form: any; setForm: (f: any) => void; onSave: () => void; busy: boolean; onCancel: () => void }) {
   const set = (k: string, v: any) => setForm({ ...form, [k]: v })
   const setCampo = (k: string, v: any) => setForm({ ...form, campos: { ...(form.campos || {}), [k]: v } })
+  function pickServico(nome: string) {
+    const s = servicosLista.find(x => x.nome === nome)
+    setForm({ ...form, assunto: nome, ...(s?.duracao ? { duracao: String(s.duracao) } : {}), campos: { ...(form.campos || {}), valor_servico: s?.valor || form.campos?.valor_servico || '' } })
+  }
   const Row = ({ children }: { children: React.ReactNode }) => <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>{children}</div>
   const F = ({ label, children }: { label: string; children: React.ReactNode }) => <div><label style={T.label}>{label}</label>{children}</div>
   return (
@@ -318,9 +335,11 @@ function Form({ seg, campos, profissionais, servicos, form, setForm, onSave, bus
       </Row>
       <Row>
         <F label={seg.servico}>
-          {servicos.length
-            ? <select className="field" value={form.assunto} onChange={e => set('assunto', e.target.value)}><option value="">—</option>{servicos.map(s => <option key={s} value={s}>{s}</option>)}</select>
-            : <input className="field" value={form.assunto} onChange={e => set('assunto', e.target.value)} />}
+          {servicosLista.length
+            ? <select className="field" value={form.assunto} onChange={e => pickServico(e.target.value)}><option value="">—</option>{servicosLista.map(s => <option key={s.nome} value={s.nome}>{s.nome}{s.valor ? ` — ${s.valor}` : ''}{s.duracao ? ` (${s.duracao}min)` : ''}</option>)}</select>
+            : servicos.length
+              ? <select className="field" value={form.assunto} onChange={e => set('assunto', e.target.value)}><option value="">—</option>{servicos.map(s => <option key={s} value={s}>{s}</option>)}</select>
+              : <input className="field" value={form.assunto} onChange={e => set('assunto', e.target.value)} />}
         </F>
         <F label={seg.profissional}>
           {profissionais.length
@@ -328,6 +347,7 @@ function Form({ seg, campos, profissionais, servicos, form, setForm, onSave, bus
             : <input className="field" value={form.profissional} onChange={e => set('profissional', e.target.value)} />}
         </F>
         <F label="Canal"><input className="field" value={form.canal} onChange={e => set('canal', e.target.value)} placeholder="WhatsApp, presencial…" /></F>
+        {unidades.length > 0 && <F label="Unidade"><select className="field" value={form.campos?.unidade || ''} onChange={e => setCampo('unidade', e.target.value)}><option value="">—</option>{unidades.map(u => <option key={u} value={u}>{u}</option>)}</select></F>}
       </Row>
       {campos.length > 0 && (
         <Row>
