@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { C, T, CARD, FONT } from '@/lib/styles'
+import { SEGMENTOS } from '@/lib/segmentos'
 
 const TABS = [
   ['empresa', 'Empresa'], ['agente', 'Agente'], ['treinamento', 'Treinamento'], ['atendimento', 'Atendimento'],
@@ -82,7 +83,7 @@ export default function PainelConfigPage() {
           escalonar_quando: c.escalonar_quando ?? {},
           digest: c.digest ?? { conteudo: {} },
           training: c.training ?? { instrucoes: '', regras: '', nao_fazer: '', produtos: [], faqs: [], promocoes: [] },
-          scheduling: c.scheduling ?? { mode: 'manual', sabado: false, domingo: false, start: '09:00', end: '18:00', duration_min: 30, buffer_min: 15, min_notice_hours: 2, max_per_day: 8, modalidade_presencial: true, modalidade_online: true, modalidade_telefone: false, address: '', responsibles: '', timezone: 'America/Sao_Paulo' },
+          scheduling: c.scheduling ?? { mode: 'manual', segmento: 'comercial', servicos: '', sabado: false, domingo: false, start: '09:00', end: '18:00', duration_min: 30, buffer_min: 15, min_notice_hours: 2, max_per_day: 8, modalidade_presencial: true, modalidade_online: true, modalidade_telefone: false, address: '', responsibles: '', datas_bloqueadas: '', timezone: 'America/Sao_Paulo' },
         })
       }
       setLoading(false)
@@ -444,6 +445,20 @@ export default function PainelConfigPage() {
                     <option value="auto_allowed">Automático apenas em horários permitidos</option>
                   </select>
                 </Campo>
+              </div>
+
+              <div style={cardSec}>
+                <h2 style={secTitle}>Segmento e serviços</h2>
+                <p style={secSub}>Define os campos e rótulos da sua Agenda conforme o ramo (paciente/procedimento, cliente/serviço, veículo/placa, imóvel, mesa…).</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Campo label="Segmento do negócio">
+                    <select className="field" value={sched.segmento || 'comercial'} onChange={e => setSched('segmento', e.target.value)}>
+                      {Object.entries(SEGMENTOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </Campo>
+                  <Campo label="Serviços oferecidos" hint="Separe por vírgula. Aparecem ao criar agendamentos."><input className="field" value={sched.servicos || ''} onChange={e => setSched('servicos', e.target.value)} placeholder="Ex.: Corte, Coloração, Avaliação" /></Campo>
+                  <Campo label="Datas bloqueadas / feriados" hint="Datas sem atendimento (AAAA-MM-DD), separadas por vírgula."><input className="field" value={sched.datas_bloqueadas || ''} onChange={e => setSched('datas_bloqueadas', e.target.value)} placeholder="2026-12-25, 2027-01-01" /></Campo>
+                </div>
               </div>
 
               <div style={cardSec}>

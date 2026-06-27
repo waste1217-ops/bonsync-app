@@ -71,6 +71,7 @@ const clientNav: NavGroup[] = [
     { href: '/painel/conversas',     label: 'Conversas',        icon: ChatIcon },
     { href: '/painel/leads',         label: 'Leads',            icon: UsersIcon },
     { href: '/painel/negocios',      label: 'Negócios',         icon: DealIcon },
+    { href: '/painel/agenda',        label: 'Agenda',           icon: CalendarIcon },
     { href: '/painel/conhecimento',  label: 'Conhecimento',     icon: BookIcon },
   ] },
   { section: 'Análise', items: [
@@ -226,6 +227,11 @@ function PulseIcon({ size = 16, color = 'currentColor' }: IconProps) {
 function BookIcon({ size = 16, color = 'currentColor' }: IconProps) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+  </svg>
+}
+function CalendarIcon({ size = 16, color = 'currentColor' }: IconProps) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
   </svg>
 }
 function BellIcon({ size = 16, color = 'currentColor' }: IconProps) {
