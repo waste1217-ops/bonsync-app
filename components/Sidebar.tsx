@@ -75,6 +75,7 @@ const clientNav: NavGroup[] = [
     { href: '/painel/conhecimento',  label: 'Conhecimento',     icon: BookIcon },
   ] },
   { section: 'Análise', items: [
+    { href: '/painel/faturamento',   label: 'Faturamento',      icon: DealIcon },
     { href: '/painel/metricas',      label: 'Relatórios',       icon: ChartIcon },
     { href: '/painel/avaliacoes',    label: 'Avaliações',       icon: SparkIcon },
   ] },
