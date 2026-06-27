@@ -17,6 +17,8 @@ export interface Deal {
   status: string
   detected_at: string | null
   confirmed_at: string | null
+  forma_pagamento?: string | null
+  conversation_id?: string | null
 }
 export interface Meeting {
   id: string
@@ -275,7 +277,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
     if (error) { toast(error.message, 'err'); return }
     setLista(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d))
   }
-  function abrirEdit(d: Deal) { setEditId(d.id); setEdit({ empresa: d.empresa || '', produto: d.produto || '', volume: d.volume || '', valor: d.valor || '', status: d.status, resumo: d.resumo || '' }) }
+  function abrirEdit(d: Deal) { setEditId(d.id); setEdit({ empresa: d.empresa || '', produto: d.produto || '', volume: d.volume || '', valor: d.valor || '', forma_pagamento: d.forma_pagamento || '', status: d.status, resumo: d.resumo || '' }) }
   async function salvarEdit(id: string) {
     setBusy(id + 'save')
     const patch: any = { ...edit, confirmed_at: edit.status === 'confirmed' ? new Date().toISOString() : null }
@@ -442,7 +444,7 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
 
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[['empresa', 'Empresa / cliente'], ['produto', 'Produto / serviço'], ['volume', 'Volume'], ['valor', 'Valor estimado']].map(([k, lbl]) => (
+            {[['empresa', 'Empresa / cliente'], ['produto', 'Produto / serviço'], ['volume', 'Volume'], ['valor', 'Valor da venda'], ['forma_pagamento', 'Forma de pagamento']].map(([k, lbl]) => (
               <div key={k}><label style={T.label}>{lbl}</label><input className="field" value={edit[k]} onChange={e => setEdit({ ...edit, [k]: e.target.value })} /></div>
             ))}
             <div><label style={T.label}>Status</label><select className="field" value={edit.status} onChange={e => setEdit({ ...edit, status: e.target.value })}>{STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
@@ -454,14 +456,19 @@ export function NegociosCentral({ deals, funnel, convMap, meetings, proposals, a
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: d.resumo ? 12 : 0 }}>
-              {[['Contato', d.contato_nome], ['Canal', 'WhatsApp'], ['Produto / serviço', d.produto], ['Volume', d.volume], ['Valor estimado', d.valor], ['Status', st.label],
+              {[['Contato', d.contato_nome], ['Canal', 'WhatsApp'], ['Produto / serviço', d.produto], ['Volume', d.volume],
+                [confirmado ? 'Valor da venda' : 'Valor estimado', d.valor || (confirmado ? 'Valor pendente' : null)],
+                ['Forma de pagamento', d.forma_pagamento], ['Status', st.label],
                 ...(enriquecido ? [['Nível de interesse', nivel], ['Última interação', fmtDate(d.confirmed_at || d.detected_at)]] : [])
-              ].filter(([, v]) => v).map(([k, v]) => (
+              ].filter(([, v]) => v).map(([k, v]) => {
+                const valorPendente = (k === 'Valor da venda' || k === 'Valor estimado') && v === 'Valor pendente'
+                const ehValor = k === 'Valor da venda' || k === 'Valor estimado'
+                return (
                 <div key={k as string}>
                   <p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 3 }}>{k}</p>
-                  <p style={{ fontFamily: FONT.dm, fontSize: 14, color: (k === 'Valor estimado') ? 'var(--c-green)' : C.white, fontWeight: k === 'Valor estimado' ? 500 : 400 }}>{v as string}</p>
+                  <p style={{ fontFamily: FONT.dm, fontSize: 14, color: valorPendente ? 'var(--c-yellow)' : ehValor ? 'var(--c-green)' : C.white, fontWeight: ehValor ? 500 : 400 }}>{v as string}</p>
                 </div>
-              ))}
+              )})}
             </div>
             {d.resumo && <div style={{ marginBottom: 12 }}><p style={{ ...T.mono, color: C.faint, fontSize: 9, marginBottom: 4 }}>{enriquecido ? 'Motivo da oportunidade' : 'Resumo'}</p><p style={{ fontFamily: FONT.dm, fontSize: 13.5, color: C.muted, lineHeight: 1.6, fontWeight: 300 }}>{d.resumo}</p></div>}
             <div style={{ background: C.void, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
