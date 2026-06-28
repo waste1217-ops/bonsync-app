@@ -28,17 +28,25 @@ export const MODALIDADES_PEDIDO = [
   'Pronta entrega', 'Delivery', 'Retirada no local', 'Encomenda', 'Pedido agendado', 'Reserva de mesa',
 ]
 
+const PAG: CampoExtra = { k: 'forma_pagamento', label: 'Forma de pagamento' }
+
 export const SEGMENTOS: Record<string, Segmento> = {
   comercial:   { label: 'Comercial / Vendas',  cliente: 'Cliente',  servico: 'Reunião / motivo', profissional: 'Responsável',  campos: [{ k: 'tipo_reuniao', label: 'Tipo de reunião' }] },
-  clinica:     { label: 'Clínica / Saúde',     cliente: 'Paciente', servico: 'Procedimento',     profissional: 'Profissional', campos: [{ k: 'convenio', label: 'Convênio' }] },
-  salao:       { label: 'Salão de beleza',     cliente: 'Cliente',  servico: 'Serviço',          profissional: 'Profissional', campos: [] },
+  clinica:     { label: 'Clínica / Saúde',     cliente: 'Paciente', servico: 'Procedimento',     profissional: 'Profissional', campos: [{ k: 'convenio', label: 'Convênio' }, { k: 'especialidade', label: 'Especialidade' }, { k: 'tipo_consulta', label: 'Tipo de consulta' }, PAG] },
+  consultorio: { label: 'Consultório',         cliente: 'Paciente', servico: 'Consulta',         profissional: 'Profissional', campos: [{ k: 'convenio', label: 'Convênio' }, { k: 'especialidade', label: 'Especialidade' }, { k: 'tipo_consulta', label: 'Tipo de consulta' }, PAG] },
+  salao:       { label: 'Salão de beleza',     cliente: 'Cliente',  servico: 'Serviço',          profissional: 'Profissional', campos: [PAG] },
+  barbearia:   { label: 'Barbearia',           cliente: 'Cliente',  servico: 'Serviço',          profissional: 'Barbeiro',     campos: [PAG] },
+  spa:         { label: 'Spa / Estética',      cliente: 'Cliente',  servico: 'Procedimento',     profissional: 'Profissional', campos: [{ k: 'sala', label: 'Sala' }, PAG] },
   academia:    { label: 'Academia / Estúdio',  cliente: 'Aluno',    servico: 'Aula / avaliação', profissional: 'Instrutor',    campos: [{ k: 'plano', label: 'Plano' }] },
-  oficina:     { label: 'Oficina',             cliente: 'Cliente',  servico: 'Serviço',          profissional: 'Responsável',  campos: [{ k: 'veiculo', label: 'Veículo' }, { k: 'placa', label: 'Placa' }] },
-  imobiliaria: { label: 'Imobiliária',         cliente: 'Cliente',  servico: 'Tipo de visita',   profissional: 'Corretor',     campos: [{ k: 'imovel', label: 'Imóvel' }] },
+  oficina:     { label: 'Oficina / Automotivo', cliente: 'Cliente', servico: 'Serviço',          profissional: 'Técnico',      campos: [{ k: 'veiculo', label: 'Veículo' }, { k: 'modelo', label: 'Modelo' }, { k: 'placa', label: 'Placa' }, { k: 'previsao_conclusao', label: 'Previsão de conclusão' }, { k: 'valor_estimado', label: 'Valor estimado' }, PAG] },
+  imobiliaria: { label: 'Imobiliária',         cliente: 'Cliente',  servico: 'Tipo de visita',   profissional: 'Corretor',     campos: [{ k: 'imovel', label: 'Imóvel' }, { k: 'endereco_imovel', label: 'Endereço do imóvel' }, { k: 'tipo_interesse', label: 'Tipo de interesse' }, { k: 'tipo_visita', label: 'Tipo de visita' }] },
+  servicos:    { label: 'Serviços / Visita técnica', cliente: 'Cliente', servico: 'Tipo de serviço', profissional: 'Técnico',  campos: [{ k: 'endereco', label: 'Endereço' }, { k: 'equipamento', label: 'Equipamento' }, { k: 'prioridade', label: 'Prioridade' }, { k: 'valor_estimado', label: 'Valor estimado' }, PAG] },
   escritorio:  { label: 'Escritório',          cliente: 'Cliente',  servico: 'Assunto',          profissional: 'Responsável',  campos: [{ k: 'tipo_reuniao', label: 'Tipo de reunião' }] },
-  servicos:    { label: 'Serviços / Visita técnica', cliente: 'Cliente', servico: 'Atendimento',  profissional: 'Técnico',      campos: [{ k: 'local', label: 'Local' }] },
   restaurante: { label: 'Restaurante (pedidos)', cliente: 'Cliente', servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
   lanchonete:  { label: 'Lanchonete (pedidos)',  cliente: 'Cliente', servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
+  pizzaria:    { label: 'Pizzaria (pedidos)',    cliente: 'Cliente', servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
+  padaria:     { label: 'Padaria (pedidos)',     cliente: 'Cliente', servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
+  marmitaria:  { label: 'Marmitaria (pedidos)',  cliente: 'Cliente', servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
   confeitaria: { label: 'Confeitaria (encomendas)', cliente: 'Cliente', servico: 'Encomenda',    profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
   alimenticio: { label: 'Alimentício (geral)',  cliente: 'Cliente',  servico: 'Pedido',          profissional: 'Responsável',  campos: CAMPOS_PEDIDO, pedidos: true },
   outro:       { label: 'Outro / Personalizado', cliente: 'Cliente', servico: 'Serviço / motivo', profissional: 'Responsável', campos: [] },

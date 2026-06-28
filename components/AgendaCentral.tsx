@@ -151,7 +151,7 @@ export function AgendaCentral({ meetings, agentId, seg, campos, profissionais, s
   async function concluir(m: AgMeeting) {
     const cp = m.campos || {}
     await setStatus(m.id, 'realizada')
-    await registrarVenda(m, m.assunto || seg.servico, cp.valor_servico || '', 'Atendimento concluído.')
+    await registrarVenda(m, m.assunto || seg.servico, cp.valor_servico || cp.valor_estimado || cp.valor_total || '', 'Atendimento concluído.')
   }
   async function reagendar(m: AgMeeting) {
     const d = prompt('Nova data (AAAA-MM-DD):', (m.start_at || m.requested_date || '').slice(0, 10)); if (!d) return
