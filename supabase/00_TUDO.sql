@@ -16,7 +16,8 @@ ALTER TABLE profiles
 ALTER TABLE messages
   ADD COLUMN IF NOT EXISTS send_status   TEXT,
   ADD COLUMN IF NOT EXISTS send_error    TEXT,
-  ADD COLUMN IF NOT EXISTS wa_message_id TEXT;
+  ADD COLUMN IF NOT EXISTS wa_message_id TEXT,
+  ADD COLUMN IF NOT EXISTS send_attempts INTEGER DEFAULT 0;
 CREATE INDEX IF NOT EXISTS messages_wa_message_id_idx ON messages (wa_message_id);
 ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_role_check;
 ALTER TABLE messages ADD CONSTRAINT messages_role_check CHECK (role IN ('user','assistant','system'));
