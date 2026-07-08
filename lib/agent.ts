@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from './supabase/admin'
-import { sendText } from './evolution'
+import { sendWhatsApp } from './whatsapp'
 
 /**
  * Núcleo do agente Bonsync.
@@ -101,7 +101,7 @@ export async function processMessage({
     if (foraDeHorario || fds) {
       await supabase.from('messages').insert({ conversation_id: conversation.id, role: 'assistant', content: cfg.away_message })
       await supabase.from('conversations').update({ message_count: (conversation.message_count ?? 0) + 1, updated_at: new Date().toISOString() }).eq('id', conversation.id)
-      await sendText(instance, contactJid, cfg.away_message)
+      await sendWhatsApp(cfg, contactJid, cfg.away_message)
       console.log(`[agent] Fora do horário — mensagem de ausência enviada para ${contactId}`)
       return
     }
@@ -133,7 +133,7 @@ export async function processMessage({
 
     const escMsg = 'Esta conversa foi transferida para um atendente humano. Em breve alguém entrará em contato. 🙏'
     await supabase.from('messages').insert({ conversation_id: conversation.id, role: 'assistant', content: escMsg })
-    await sendText(instance, contactJid, escMsg)
+    await sendWhatsApp(cfg, contactJid, escMsg)
     return
   }
 
@@ -201,7 +201,7 @@ export async function processMessage({
 
   try {
     console.log(`[agent] → enviando resposta para ${contactId} (instância ${instance})`)
-    await sendText(instance, contactJid, reply)
+    await sendWhatsApp(cfg, contactJid, reply)
     if (savedMsg?.id) await supabase.from('messages').update({ send_status: 'enviada' }).eq('id', savedMsg.id)
     console.log(`[agent] ✓ resposta ENTREGUE para ${contactId} — conversa ${conversation.id}`)
   } catch (err: any) {
@@ -358,7 +358,7 @@ async function detectAppointment(
 /** Motivo legível a partir do erro de envio (sendText lança "Evolution API <status>: <body>") */
 function mapSendError(err: any): string {
   const msg = String(err?.message || '')
-  const m = msg.match(/Evolution API (\d+)/)
+  const m = msg.match(/(?:Evolution|Meta) API (\d+)/)
   const s = m ? Number(m[1]) : 0
   if (s === 401 || s === 403) return 'Token inválido ou sem permissão'
   if (s === 404) return 'Instância/canal não encontrado (desconectado)'

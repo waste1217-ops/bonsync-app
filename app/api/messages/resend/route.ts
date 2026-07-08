@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendText } from '@/lib/evolution'
+import { sendWhatsApp, canalDe } from '@/lib/whatsapp'
 
 function mapSendError(err: any): string {
-  const m = String(err?.message || '').match(/Evolution API (\d+)/)
+  const m = String(err?.message || '').match(/(?:Evolution|Meta) API (\d+)/)
   const s = m ? Number(m[1]) : 0
   if (s === 401 || s === 403) return 'Token inválido ou sem permissão'
   if (s === 404) return 'Instância/canal não encontrado (desconectado)'
@@ -37,12 +37,12 @@ export async function POST(req: NextRequest) {
   if (!isAdmin && agent?.client_id !== user.id) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 })
   if (msg.role !== 'assistant') return NextResponse.json({ error: 'Só é possível reenviar respostas do agente.' }, { status: 400 })
 
-  const instance = agent?.config?.whatsapp_instance
-  if (!instance) return NextResponse.json({ error: 'Agente sem instância de WhatsApp configurada.' }, { status: 400 })
+  const cfg = agent?.config || {}
+  if (canalDe(cfg) === 'evolution' && !cfg.whatsapp_instance) return NextResponse.json({ error: 'Agente sem instância de WhatsApp configurada.' }, { status: 400 })
 
   await admin.from('messages').update({ send_status: 'enviando', send_error: null }).eq('id', message_id)
   try {
-    const data: any = await sendText(instance, conv.contact_identifier, msg.content)
+    const data: any = await sendWhatsApp(cfg, conv.contact_identifier, msg.content)
     const waId = data?.key?.id || null
     if (!waId) {
       await admin.from('messages').update({ send_status: 'falha', send_error: 'API não retornou messageId' }).eq('id', message_id)

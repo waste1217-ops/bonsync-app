@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendText, toSendTarget } from '@/lib/evolution'
+import { toSendTarget } from '@/lib/evolution'
+import { sendWhatsApp, canalDe } from '@/lib/whatsapp'
 
 function mapSendError(err: any): string {
   const msg = String(err?.message || '')
   if (msg.startsWith('SEND_TARGET:NO_PHONE')) return 'O cliente não possui telefone cadastrado.'
   if (msg.startsWith('SEND_TARGET:INVALID_NUMBER')) return 'O número do cliente é inválido.'
-  const m = msg.match(/Evolution API (\d+)/)
+  const m = msg.match(/(?:Evolution|Meta) API (\d+)/)
   const s = m ? Number(m[1]) : 0
   if (s === 401 || s === 403) return 'Token inválido ou sem permissão.'
   if (s === 404) return 'O WhatsApp está desconectado.'
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
   let sendResult: { ok: boolean; error?: string; messageId?: string; retryable?: boolean } = { ok: true }
   if (mensagem) {
     const alvo = toSendTarget(contato)
-    if (!instance) {
+    if (canalDe(cfg) === 'evolution' && !instance) {
       sendResult = { ok: false, error: 'Agente sem instância de WhatsApp configurada.', retryable: false }
     } else if (!alvo.ok) {
       // número ausente/inválido: não adianta reenviar
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
         ? await admin.from('messages').insert({ conversation_id: convId, role: 'assistant', content: mensagem, send_status: 'enviando' }).select('id').single()
         : { data: null as any }
       try {
-        const data: any = await sendText(instance, alvo.target, mensagem)
+        const data: any = await sendWhatsApp(cfg, alvo.target, mensagem)
         const waId = data?.key?.id || null
         if (!waId) {
           if (saved?.id) await admin.from('messages').update({ send_status: 'falha', send_error: 'API não retornou messageId' }).eq('id', saved.id)

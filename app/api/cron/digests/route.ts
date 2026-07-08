@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail, digestEmailHtml } from '@/lib/email'
+import { sendWhatsApp } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -12,17 +13,11 @@ function authorized(req: NextRequest) {
   return auth === `Bearer ${secret}` || req.nextUrl.searchParams.get('key') === secret
 }
 
-async function sendWhatsapp(number: string, text: string) {
-  const url = process.env.EVOLUTION_API_URL, key = process.env.EVOLUTION_API_KEY
-  const instance = process.env.EVOLUTION_INSTANCE_NAME || 'javai'
-  if (!url || !key || !number) return
-  try {
-    await fetch(`${url}/message/sendText/${instance}`, {
-      method: 'POST',
-      headers: { apikey: key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number: number.replace(/\D/g, ''), text }),
-    })
-  } catch {}
+// Envia o resumo pelo canal do PRÓPRIO agente (Meta ou Evolution), não por uma
+// instância global. cfg = agent.config.
+async function sendWhatsappDigest(cfg: any, number: string, text: string) {
+  if (!number) return
+  try { await sendWhatsApp(cfg, number, text) } catch (e: any) { console.error('[digests] envio WA falhou:', e?.message) }
 }
 
 export async function GET(req: NextRequest) {
@@ -91,7 +86,7 @@ export async function GET(req: NextRequest) {
         `💬 Atendimentos: ${conversas.total}\n✅ Resolvidos: ${conversas.resolvidas}\n🚨 Escalados: ${conversas.escaladas}\n📨 Em aberto: ${conversas.abertas}\n\n` +
         `🤝 *Negócios fechados:*\n${fechadosTxt}\n\n` +
         `${pendentes ?? 0} negócio(s) aguardando confirmação no painel.`
-      await sendWhatsapp(cfg.escalation_phone, texto)
+      await sendWhatsappDigest(cfg, cfg.escalation_phone, texto)
       enviados++
     }
   }
